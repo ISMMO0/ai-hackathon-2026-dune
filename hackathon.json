@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "app": {
+    "compose": "docker-compose.yml",
+    "service": "app",
+    "port": 3000,
+    "readyPath": "/readyz"
+  }
+}

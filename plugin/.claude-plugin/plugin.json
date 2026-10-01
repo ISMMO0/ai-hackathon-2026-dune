@@ -1,0 +1,8 @@
+{
+  "name": "chassis",
+  "version": "0.1.0",
+  "description": "Skills for a tool made from the Antasphere tool template: make the tool, add a resource through every slot, connect it to the hub, put it on the fleet.",
+  "author": { "name": "Antasphere" },
+  "license": "SEE LICENSE IN LICENSE",
+  "keywords": ["antasphere", "chassis", "tool-template"]
+}

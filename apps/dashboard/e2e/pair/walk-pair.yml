@@ -1,0 +1,29 @@
+# The pair the cloud walk (walk.spec.ts) runs on, layered on the repo's own
+# docker-compose.federation.yml: the hub and a cloud-edition instance of the
+# placeholder tool under one parent domain (*.ant.localhost, PRDCT-2825), plus
+# what the walk needs beyond the harness and nothing else:
+#
+#  - DEMO_SIGN_IN on the hub: the walk opens a hub demo link (and the pair
+#    suite's cloud-landing spec mints two). The hub accepts the switch on a
+#    *.localhost host without listing it.
+#  - SUPERADMIN_EMAILS: the hub's owner is platform staff, so the walk can seed
+#    the price book and grant credits (the 402 and 403 cards).
+#  - SETUP_TOKEN on the tool: the claim credential the walk presents to
+#    POST /setup (PRDCT-1347); the walk reads it from PW_PAIR_SETUP_TOKEN.
+#  - The registry entry's launchUrl and postLogoutRedirectUris (the seamless
+#    fields): the single sign-out lands back on the tool's login page.
+#
+#   FEDERATION_PROJECT=tt-e-fed FEDERATION_HUB_PORT=7301 FEDERATION_SL_PORT=7310 FEDERATION_MAIL_PORT=8130 \
+#   PW_PAIR_SETUP_TOKEN=$(openssl rand -hex 16) \
+#   docker compose -f docker-compose.federation.yml -f apps/dashboard/e2e/pair/walk-pair.yml up -d --build
+#
+# DEV ONLY, like the base file: inline secrets, localhost-bound ports.
+services:
+  hub:
+    environment:
+      - DEMO_SIGN_IN=true
+      - SUPERADMIN_EMAILS=${PW_PAIR_OWNER_EMAIL:-owner@example.com}
+      - 'TOOL_REGISTRY=[{"slug":"starter-cloud","name":"Hackathon Starter (federation dev)","resourceUrl":"http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/mcp","redirectUris":["http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/api/v1/auth/oauth2/callback/antasphere"],"clientId":"tool-starter-cloud","clientSecret":"federation-dev-client-secret-0001","launchUrl":"http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}","postLogoutRedirectUris":["http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/login?signed_out=1"]}]'
+  app:
+    environment:
+      - SETUP_TOKEN=${PW_PAIR_SETUP_TOKEN:?the tool's claim credential; the walk presents it to POST /setup}

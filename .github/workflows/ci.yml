@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+    # The template has one branch, main.
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # packages/chassis-* are copies of the source named in chassis-source.json, never edited here.
+      - run: node scripts/check-chassis-copies.mjs
+      # The dashboard shell is a copy too, of the source named in shell-source.json, never edited here;
+      # it is held on a normalised form (comments, identity words and white space set aside).
+      - run: node scripts/check-shell-copies.mjs && node --test scripts/check-shell-copies.test.mjs
+      - run: pnpm turbo lint typecheck test build
+      - run: pnpm format:check
+      - run: pnpm --filter @app/server drift:check
+      # The compose file must read with NOTHING set but the one variable every
+      # install has: an optional service's required variable once made every
+      # compose command fail for every self-hoster (Slideless PRDCT-2725).
+      - name: The compose file reads without the optional services' variables
+        run: |
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.yml config --quiet
+          POSTGRES_PASSWORD=ci docker compose -f docker-compose.yml -f docker-compose.dev.yml config --quiet
+
+  # The hub owns the wire (PRDCT-2677): the chassis contract carries copies of the
+  # hub's message schemas, and this job compares them with the hub's own snapshot
+  # on its dev branch, read through the App token the federation drill already
+  # uses. Locally the check resolves a sibling hub checkout one level off from
+  # the template's place in the workspace (right for a tool cut from it); set
+  # HUB_WIRE_SNAPSHOT to the hub's packages/contract/wire/hub-tool-messages.json
+  # to run it here, and never patch the copy.
+  hub-wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v1
+        id: hub-checkout
+        with:
+          app-id: ${{ secrets.FEDERATION_DRILL_APP_ID }}
+          private-key: ${{ secrets.FEDERATION_DRILL_APP_KEY }}
+          owner: antasphere
+          repositories: hub
+      - uses: actions/checkout@v4
+        with:
+          repository: antasphere/hub
+          ref: dev
+          token: ${{ steps.hub-checkout.outputs.token }}
+          path: .hub-wire
+          sparse-checkout: packages/contract/wire/hub-tool-messages.json
+          sparse-checkout-cone-mode: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @antasphere/chassis-contract build
+      - name: Compare the chassis's copies with the hub's wire snapshot
+        run: HUB_WIRE_SNAPSHOT=$GITHUB_WORKSPACE/.hub-wire/packages/contract/wire/hub-tool-messages.json pnpm --filter @antasphere/chassis-contract wire:check
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo build --filter=@app/db --filter=@app/server --filter=@antasphere/starter
+      - run: pnpm turbo test:integration
+
+  hostinger:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test scripts/hostinger-template.test.mjs
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image for Hostinger rehearsal
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: starter:hostinger-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Exercise HTTPS installation and persistence
+        env:
+          HOSTINGER_TEST_IMAGE: starter:hostinger-test
+        run: node scripts/hostinger-smoke.mjs
+      # This verifies the exact artifact used by customers, independently of
+      # the checkout build above. Public publication separately requires
+      # anonymous pulls; this login lets CI test it before visibility changes.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # The published image is rehearsed as soon as one exists. The job READS the state from
+      # deploy/hostinger/docker-compose.yml: `:unreleased` means the tool has published nothing,
+      # and the run says so in a notice. Any other reference is a digest pin (the template test
+      # above refuses the rest) and is rehearsed. Nothing here is switched by hand.
+      - name: Is there a published image to rehearse?
+        id: release
+        run: |
+          if grep -qE '^\s+image: ghcr\.io/[a-z0-9-]+/[a-z0-9-]+:unreleased$' deploy/hostinger/docker-compose.yml; then
+            echo "released=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No release yet (deploy/hostinger/docker-compose.yml says :unreleased): the rehearsal on the published image does not run."
+          else
+            echo "released=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Exercise the pinned distribution image
+        if: steps.release.outputs.released == 'true'
+        run: node scripts/hostinger-smoke.mjs
+
+  # The Profile B rehearsal: a real multi-replica stack (advisory-lock
+  # migration race, cross-replica sessions/API keys, Redis-shared rate
+  # limits + the in-memory contrast, the api/worker SERVICE_ROLE split).
+  # Same script as the local drill — docs/operations/scaling.md.
+  scale-drill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the drill image once (all replicas share it)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: starter:scale
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run the multi-replica scale drill
+        run: DRILL_SKIP_BUILD=1 ./scripts/scale-drill.sh
+
+  # The federation drill (PRDCT-1370): the hub AND this checkout in
+  # one compose project, a headless SSO login, then assertions on the HUB's
+  # database — the only place the grant-family consequences are visible.
+  # internal/federation.md "The federation drill". The hub is checked out
+  # beside this repo (its dev branch) and built by the compose file; the
+  # checkout needs a token that can read antasphere/hub
+  # (minted per run by the antasphere-federation-drill GitHub App, which has
+  # contents:read on antasphere/hub).
+  federation-drill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/create-github-app-token@v1
+        id: hub-checkout
+        with:
+          app-id: ${{ secrets.FEDERATION_DRILL_APP_ID }}
+          private-key: ${{ secrets.FEDERATION_DRILL_APP_KEY }}
+          owner: antasphere
+          repositories: hub
+      - uses: actions/checkout@v4
+        with:
+          repository: antasphere/hub
+          ref: dev
+          token: ${{ steps.hub-checkout.outputs.token }}
+          path: .federation-hub
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the tool's image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: starter:federation-dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build the hub image
+        uses: docker/build-push-action@v6
+        with:
+          context: .federation-hub
+          load: true
+          tags: antasphere-hub:federation-dev
+          cache-from: type=gha,scope=federation-hub
+          cache-to: type=gha,mode=max,scope=federation-hub
+      - name: Run the federation drill
+        run: FEDERATION_HUB_DIR=$PWD/.federation-hub DRILL_SKIP_BUILD=1 ./scripts/federation-drill.sh

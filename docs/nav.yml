@@ -1,0 +1,34 @@
+product: Hackathon Starter
+description: Workspaces, members, API keys, an audit log, files, a CLI and an MCP endpoint, self-hosted or on Antasphere cloud.
+groups:
+  - title: Getting started
+    pages:
+      - index
+      - getting-started/connect-an-agent
+      - getting-started/antasphere-account
+  - title: Concepts
+    pages:
+      - concepts/workspaces
+      - concepts/projects
+  - title: Agents
+    pages:
+      - agents/cli
+      - agents/mcp-connector
+  - title: Self-hosting
+    pages:
+      - self-hosting/install
+      - self-hosting/hostinger
+      - self-hosting/reverse-proxy
+      - self-hosting/deployment-profiles
+      - self-hosting/demo-links
+      - self-hosting/upgrade
+  - title: Operations
+    pages:
+      - operations/backup-restore
+      - operations/scaling
+  - title: Security
+    pages:
+      - security/security
+  - title: Reference
+    pages:
+      - reference/env-reference

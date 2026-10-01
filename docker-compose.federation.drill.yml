@@ -1,0 +1,78 @@
+# Federation DRILL overlay (PRDCT-1370) — internal/federation.md "The
+# federation drill". Adds to the dev harness exactly what the automated
+# seam test needs and nothing the harness itself should carry:
+#
+#   docker compose -f docker-compose.federation.yml -f docker-compose.federation.drill.yml up -d
+#
+#  - a delay hop between Hackathon Starter and the hub (scripts/lib/delay-proxy.mjs,
+#    run from the Hackathon Starter image itself — no third-party image to pull).
+#    The app container is given an /etc/hosts entry pinning `hub.ant.localhost`
+#    to the hop's fixed address (extra_hosts wins over the compose DNS
+#    alias), so every hub call Hackathon Starter makes — discovery, JWKS, /orgs,
+#    the token endpoint — crosses it while the hub's own PUBLIC_BASE_URL,
+#    the issuer string and the browser-facing ports stay exactly as in the
+#    harness. The drill script drives the hop's admin API (127.0.0.1:8474)
+#    to make the hub SLOW BUT ALIVE for one refresh: the CLOUD-2 shape,
+#    where the hub commits a rotation and Hackathon Starter's client-side timeout
+#    fires first.
+#  - a SECOND registry tool on the hub (`tool-drill-second`), so the
+#    per-client audience rule has a foreign audience to refuse and the
+#    rotation-grace leg has a grant family of its own to tear down without
+#    touching the Hackathon Starter user's.
+#
+# DEV/CI ONLY — inline secrets, localhost-bound ports.
+#
+# Beside the harness's FEDERATION_* variables (see docker-compose.federation.yml)
+# this overlay takes, with today's values as defaults:
+#   FEDERATION_HOP_PORT       the hop's admin port on the host   8474
+#   FEDERATION_SUBNET_PREFIX  the first three octets of the /24  172.30.250
+#                             (subnet <prefix>.0/24, hop <prefix>.250)
+
+services:
+  hubhop:
+    image: ${FEDERATION_SL_IMAGE:-starter:federation-dev}
+    restart: unless-stopped
+    entrypoint: ['node', '/delay-proxy.mjs']
+    environment:
+      - LISTEN=${FEDERATION_HUB_PORT:-3300}
+      - UPSTREAM_HOST=hub
+      - UPSTREAM_PORT=${FEDERATION_HUB_PORT:-3300}
+      - ADMIN=${FEDERATION_HOP_PORT:-8474}
+    volumes:
+      - ./scripts/lib/delay-proxy.mjs:/delay-proxy.mjs:ro
+    # The image's own healthcheck probes the Hackathon Starter port; the hop has none.
+    healthcheck:
+      disable: true
+    networks:
+      default:
+        ipv4_address: ${FEDERATION_SUBNET_PREFIX:-172.30.250}.250
+    ports:
+      - '127.0.0.1:${FEDERATION_HOP_PORT:-8474}:${FEDERATION_HOP_PORT:-8474}'
+
+  app:
+    depends_on:
+      hubhop:
+        condition: service_started
+    environment:
+      # The claim credential POST /setup requires (PRDCT-1347).
+      - SETUP_TOKEN=${FEDERATION_DRILL_SETUP_TOKEN:?set by scripts/federation-drill.sh}
+      # /metrics is closed without a token (ADR 005); the drill reads the
+      # credit check's posture there (Phase 8b, the billing rail's phase 2).
+      - METRICS_TOKEN=federation-dev-metrics-token-0001
+    extra_hosts:
+      - 'hub.ant.localhost:${FEDERATION_SUBNET_PREFIX:-172.30.250}.250'
+
+  hub:
+    environment:
+      # The drill's hub owner is platform staff (the break-glass allowlist):
+      # Phase 8b seeds the price book and grants credits as them (the billing
+      # rail's phase 2). The price book stays empty until that seed, as on
+      # production (BILLING_SEED_TOOLS_AT_BOOT off, the hub's default).
+      - SUPERADMIN_EMAILS=drill-owner@drill.test
+      - 'TOOL_REGISTRY=[{"slug":"starter-cloud","name":"Hackathon Starter (federation dev)","resourceUrl":"http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/mcp","redirectUris":["http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/api/v1/auth/oauth2/callback/antasphere"],"clientId":"tool-starter-cloud","clientSecret":"federation-dev-client-secret-0001"},{"slug":"drill-second","name":"Second tool (drill)","resourceUrl":"http://second.localhost:3320/mcp","redirectUris":["http://second.localhost:3320/callback"],"clientId":"tool-drill-second","clientSecret":"federation-dev-client-secret-0002"}]'
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${FEDERATION_SUBNET_PREFIX:-172.30.250}.0/24

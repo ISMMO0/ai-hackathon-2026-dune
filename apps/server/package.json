@@ -1,0 +1,54 @@
+{
+  "name": "@app/server",
+  "version": "0.6.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist",
+    "public"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch src/index.ts",
+    "preview:emails": "tsx scripts/previewEmails.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run --dir test/unit",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "drift:check": "bash scripts/check-auth-schema-drift.sh",
+    "docs:env": "tsx scripts/generate-env-docs.ts && prettier --write ../../docs/reference/env-reference.md"
+  },
+  "dependencies": {
+    "@antasphere/chassis-contract": "workspace:*",
+    "@antasphere/chassis-db": "workspace:*",
+    "@antasphere/chassis-server": "workspace:*",
+    "@better-auth/oauth-provider": "1.6.22",
+    "@hono/node-server": "^1.14.0",
+    "@hono/zod-openapi": "^1.4.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@app/contract": "workspace:*",
+    "@app/db": "workspace:*",
+    "better-auth": "1.6.22",
+    "drizzle-orm": "^0.45.2",
+    "hai-agents": "^1.0.10",
+    "hono": "^4.9.0",
+    "jose": "^6.2.3",
+    "pg": "^8.22.0",
+    "pino": "^9.7.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "1.4.21",
+    "@antasphere/starter": "workspace:*",
+    "@testcontainers/postgresql": "^11.0.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^22.15.0",
+    "@types/pg": "^8.20.0",
+    "adm-zip": "^0.6.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "vitest": "^3.2.0"
+  }
+}

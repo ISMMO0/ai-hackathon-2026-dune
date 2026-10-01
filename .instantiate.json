@@ -1,0 +1,8 @@
+{
+  "slug": "starter",
+  "displayName": "Hackathon Starter",
+  "domain": "starter.antasphere.com",
+  "domainGiven": false,
+  "cliPackage": "@antasphere/starter",
+  "cliPackageGiven": false
+}

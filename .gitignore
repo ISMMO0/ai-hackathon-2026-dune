@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+.svelte-kit/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+apps/server/public/*
+!apps/server/public/.gitkeep
+coverage/
+playwright-report/
+test-results/
+.tmp/
+data/
+apps/server/var/
+# Legacy BACKUP_DIR. backup.sh now defaults outside the checkout, but an
+# operator can still point it here — and a config archive carries AUTH_SECRET.
+# No trailing slash: the pattern must also match before the directory exists,
+# so `git check-ignore backups` answers correctly on a fresh clone.
+backups
+# Agent scratch (session notes, local settings) — never part of a release. The participant skills
+# are the hackathon plugin's (antasphere-hackathon/plugin), not this repository's.
+.claude
+# Editor / per-machine local state: only the user's GLOBAL ignore file kept
+# these out so far, which protects nobody else's clone.
+.vscode
+*.local.json
+.playwright-mcp/

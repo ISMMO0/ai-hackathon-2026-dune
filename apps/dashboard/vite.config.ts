@@ -1,0 +1,25 @@
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  ssr: {
+    // @app/sdk, @app/contract and @antasphere/chassis-contract are internal workspace packages —
+    // bundle them (never externalize) in the SSR pass that renders the SPA
+    // fallback shell, so the pre-rendered shell resolves them without a
+    // separate runtime dependency.
+    noExternal: ['@app/sdk', '@app/contract', '@antasphere/chassis-contract', '@antasphere/chassis-sdk']
+  },
+  server: {
+    // Dev-only: the SPA calls the API same-origin in production; in dev
+    // vite proxies to the API origin. Override with DEV_API_ORIGIN when the
+    // stack is not on :3000 (e.g. the compose stack publishes :3100).
+    // The key is `/api/`, slash included: a bare `/api` prefix also matches
+    // the dashboard's own `/api-keys` page and hands it to the API server.
+    proxy: {
+      '/api/': process.env.DEV_API_ORIGIN ?? 'http://localhost:3000',
+      '/healthz': process.env.DEV_API_ORIGIN ?? 'http://localhost:3000',
+      '/readyz': process.env.DEV_API_ORIGIN ?? 'http://localhost:3000'
+    }
+  }
+});

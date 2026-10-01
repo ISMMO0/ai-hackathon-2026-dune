@@ -1,0 +1,11 @@
+{
+  "name": "Hackathon Starter",
+  "short_name": "Hackathon Starter",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#f0efec",
+  "background_color": "#f0efec",
+  "display": "browser"
+}

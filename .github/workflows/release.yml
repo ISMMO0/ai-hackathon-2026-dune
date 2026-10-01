@@ -1,0 +1,251 @@
+name: Release
+
+# DISABLED IN THE TEMPLATE.
+# When enabled, this workflow builds the image, pushes it to ghcr.io, cuts the GitHub release and dispatches the roll to the fleet repository (antasphere/infra).
+# The template publishes, deploys and dispatches nothing: the only trigger left is a manual
+# run, and every job carries `if: ${{ false }}`, so a manual run does nothing either.
+# A new tool re-enables it by restoring the original trigger below and removing the job guards:
+#
+#   on:
+#     push:
+#       branches: [prod]
+#       # A promotion that touches nothing but the public docs and the self-hosting
+#       # distribution files is not a product release: no image to build, no fleet
+#       # to roll. Those paths have their own publishers (docs-notify.yml,
+#       # hostinger-pages.yml). Any product file in the same push still releases —
+#       # paths-ignore only skips when EVERY changed file matches.
+#       paths-ignore:
+#         - 'docs/**'
+#         - 'deploy/**'
+#         - 'scripts/hostinger-template.test.mjs'
+#         - 'scripts/hostinger-smoke.mjs'
+#         - '.github/workflows/hostinger-pages.yml'
+#         - '.github/workflows/docs-notify.yml'
+#         - '.github/workflows/docs-notify-release.yml'
+#       tags: ['v*']
+on: workflow_dispatch
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # The version must have MOVED (PRDCT-2340). The image reports its version
+  # intrinsically and the fleet probe asserts it live, which proves nothing
+  # when the number never changes: a prod push whose package version already
+  # carries a v-tag on another commit is a forgotten `pnpm release` and would
+  # ship a lookalike of that release. Twenty seconds, first, so a doomed run
+  # never spends the smoke's ten minutes. The guard asks ORIGIN for the tag
+  # (`git ls-remote`), so the shallow checkout below cannot hide a tag from it;
+  # a checkout with no origin makes it refuse rather than pass on missing data.
+  # That read goes through the token actions/checkout persists in the git
+  # config (its default, persist-credentials: true): switching that off turns
+  # the guard into a hard failure on every push, not into a silent pass.
+  version-guard:
+    if: ${{ false }} # disabled in the template
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # the guard reads the remote's tags, nothing more
+    steps:
+      - uses: actions/checkout@v4
+      - run: node scripts/release.mjs guard
+
+  # The image must prove itself end-to-end before anything is published:
+  # build once for the runner arch, drive the real HTTP flow, restart, check
+  # persistence — then scan it. Publish runs only after both gates.
+  e2e-smoke:
+    if: ${{ false }} # disabled in the template
+    runs-on: ubuntu-latest
+    needs: [version-guard]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (runner arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: starter-smoke:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Compose up + exercise the platform flow
+        run: |
+          set -euo pipefail
+          export APP_IMAGE=starter-smoke:test
+          METRICS_TOKEN="$(openssl rand -hex 16)"
+          SETUP_TOKEN="$(openssl rand -hex 16)"
+          {
+            echo "POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "METRICS_TOKEN=$METRICS_TOKEN"
+            echo "SETUP_TOKEN=$SETUP_TOKEN"
+          } > .env
+          docker compose up -d --no-build --wait --wait-timeout 120
+
+          BASE=http://localhost:3000
+          curl -sf "$BASE/healthz" >/dev/null
+          curl -sf "$BASE/readyz" >/dev/null
+
+          # The image reports its own intrinsic version (PRDCT-1844): this
+          # build got NO build args, so the served version must be the baked
+          # package version — never "dev"/"next" or any CI string.
+          PKG_VERSION="$(node -p "require('./apps/server/package.json').version")"
+          curl -sf "$BASE/api/v1/instance" | jq -e --arg v "$PKG_VERSION" '.version == $v' >/dev/null
+
+          # setup → 201, second → 410
+          curl -sf -X POST "$BASE/api/v1/setup" -H 'content-type: application/json' \
+            -d '{"instanceName":"Smoke","owner":{"email":"smoke@test.io","name":"Smoke","password":"smoke-password-1234"},"setupToken":"'"$SETUP_TOKEN"'"}' >/dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/v1/setup" -H 'content-type: application/json' \
+            -d '{"instanceName":"X","owner":{"email":"x@test.io","name":"X","password":"xxxxxxxxxxxxxx"},"setupToken":"'"$SETUP_TOKEN"'"}')
+          [ "$code" = "410" ]
+
+          # sign in → mint key → Bearer curl → audit shows the key identity
+          curl -sf -c /tmp/smoke.txt -X POST "$BASE/api/v1/auth/sign-in/email" -H 'content-type: application/json' \
+            -d '{"email":"smoke@test.io","password":"smoke-password-1234"}' >/dev/null
+          KEY=$(curl -sf -b /tmp/smoke.txt -X POST "$BASE/api/v1/api-keys" -H 'content-type: application/json' \
+            -d '{"name":"smoke","scopes":["items:read"]}' | jq -r '.key')
+          curl -sf -H "authorization: Bearer $KEY" "$BASE/api/v1/me" | jq -e '.via == "api_key"' >/dev/null
+          curl -sf -b /tmp/smoke.txt "$BASE/api/v1/audit?limit=20" | jq -e '[.entries[].actorVia] | index("api_key") != null' >/dev/null
+
+          # metrics scrapeable (token-gated by default: unset METRICS_TOKEN
+          # means 401 — the smoke seeds one into .env and presents it here)
+          curl -sf -H "authorization: Bearer $METRICS_TOKEN" "$BASE/metrics" | grep -q http_request_duration_seconds_bucket
+
+          # restart persistence: data survives, readiness flips back
+          docker compose restart app
+          sleep 8
+          curl -sf "$BASE/readyz" >/dev/null
+          curl -sf -H "authorization: Bearer $KEY" "$BASE/api/v1/me" | jq -e '.user.email == "smoke@test.io"' >/dev/null
+
+          docker compose down -v
+
+  vuln-scan:
+    if: ${{ false }} # disabled in the template
+    runs-on: ubuntu-latest
+    needs: [version-guard]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (runner arch)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: starter-scan:test
+          cache-from: type=gha
+      # Run Trivy from its own container rather than the marketplace action,
+      # whose binary-installer step is flaky on GitHub runners. GITHUB_TOKEN
+      # authenticates the vuln-DB pull from ghcr.io to dodge rate limits.
+      - name: Trivy scan (HIGH+CRITICAL gate)
+        run: |
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -e TRIVY_USERNAME=${{ github.actor }} \
+            -e TRIVY_PASSWORD=${{ secrets.GITHUB_TOKEN }} \
+            aquasec/trivy:latest image \
+              --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln \
+              --exit-code 1 --no-progress \
+              starter-scan:test
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [e2e-smoke, vuln-scan]
+    # First-publish gate: set the repository variable RELEASE_ENABLED=true
+    # (Settings → Secrets and variables → Actions → Variables) to arm
+    # publishing. Until then the smoke + scan gates still run on every push.
+    if: ${{ false }} # disabled in the template; was: vars.RELEASE_ENABLED == 'true'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      # The version is intrinsic (PRDCT-1844): the image bakes it in from
+      # package.json. The tag is a CHECK against that source, never the
+      # source — a v-tag whose number disagrees fails loudly here instead of
+      # silently relabelling the image.
+      - name: v-tag must match package.json
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          root="$(node -p "require('./package.json').version")"
+          server="$(node -p "require('./apps/server/package.json').version")"
+          # The image bakes apps/server's copy; root is the canonical source.
+          # All three must agree — the unit-suite drift pin does not run on
+          # the tag-push path, so this check binds them here.
+          if [ "$tag" != "$root" ] || [ "$root" != "$server" ]; then
+            echo "::error::tag v${tag} vs root package.json ${root} vs apps/server/package.json ${server} — all three must agree; bump both package.json files or retag"
+            exit 1
+          fi
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          # prod → next + sha-…; tag vX.Y.Z → X.Y.Z, X.Y, X, latest
+          tags: |
+            type=raw,value=next,enable={{is_default_branch}}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      # amd64 only. The arm64 leg built under QEMU emulation and on 2026-09-15 it died
+      # mid-`pnpm install` with `qemu: uncaught target signal 4 (Illegal instruction) -
+      # core dumped` — and buildx never saw an error, so the step HUNG rather than
+      # failing: run 34939919865 sat on it for 1h53m until it was cancelled, with the
+      # amd64 half already CACHED in seconds. It had passed on 2026-09-12 and 09-14 by
+      # luck of which packages the emulator had to run.
+      #
+      # Nothing in production wants arm64: Cloud Run runs amd64, so the arm64 manifest
+      # served nothing. It existed for local Docker on Apple Silicon. Restoring it means
+      # a native arm64 runner (a per-platform matrix + a manifest merge), never emulation
+      # — PRDCT-2337 holds that decision.
+      - name: Build + push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Hand the published image to the fleet (PRDCT-2326). The roll itself lives in
+      # the fleet repository's deploy workflow, never here: this repository is going
+      # fair-code, source-available, and carries no infrastructure — no project id, no registry path,
+      # no service name — and a fork's pull request must never reach it. Only a prod
+      # BRANCH push rolls (the promotion is the decision); a v-tag publishes the semver
+      # aliases and nothing else. The credential is the `antasphere-fleet-dispatch`
+      # GitHub App (contents: write, installed on the fleet repository alone): its key
+      # never expires, and each run mints a one-hour token from it — the same shape as
+      # the docs-sync app in docs-notify.yml.
+      - uses: actions/create-github-app-token@v1
+        if: github.ref == 'refs/heads/prod'
+        id: fleet
+        with:
+          app-id: ${{ secrets.FLEET_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.FLEET_DISPATCH_APP_KEY }}
+          owner: antasphere
+          repositories: infra
+      - name: Dispatch the fleet roll
+        if: github.ref == 'refs/heads/prod'
+        env:
+          GH_TOKEN: ${{ steps.fleet.outputs.token }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg sha "$GITHUB_SHA" \
+            --arg version "$(node -p "require('./apps/server/package.json').version")" \
+            --arg image_digest "$IMAGE_DIGEST" \
+            --arg subject "$(git log -1 --format=%s)" \
+            '{event_type: "starter-published", client_payload: {sha: $sha, version: $version, image_digest: $image_digest, subject: $subject}}' \
+            | gh api repos/antasphere/infra/dispatches --input -
+          echo "Dispatched \`starter-published\` for ${GITHUB_SHA:0:7} to antasphere/infra" >> "$GITHUB_STEP_SUMMARY"

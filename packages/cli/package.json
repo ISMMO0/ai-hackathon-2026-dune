@@ -1,0 +1,50 @@
+{
+  "name": "@antasphere/starter",
+  "version": "0.4.1",
+  "description": "The command line of a Hackathon Starter instance",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/antasphere/starter.git",
+    "directory": "packages/cli"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "starter": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && esbuild src/bin.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/bin.js --log-level=warning --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "prepack": "npm run build && cp ../../LICENSE LICENSE",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "@antasphere/chassis-cli": "workspace:*",
+    "@antasphere/chassis-contract": "workspace:*",
+    "@antasphere/chassis-sdk": "workspace:*",
+    "@antasphere/cli-core": "^0.4.0",
+    "@app/contract": "workspace:*",
+    "@app/sdk": "workspace:*",
+    "@types/node": "^22.15.0",
+    "commander": "^12.1.0",
+    "esbuild": "^0.25.0",
+    "vitest": "^3.2.0"
+  }
+}

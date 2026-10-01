@@ -1,0 +1,431 @@
+import { readFile } from 'node:fs/promises';
+import { test, expect, type Download, type Page } from '@playwright/test';
+import { INSTANCE_NAME, OWNER, signInAsOwner } from './accounts';
+
+/**
+ * PRDCT-2444 / PRDCT-2443 + PRDCT-2426, in a real browser against the real
+ * stack (`dependencies: ['smoke']`, so the owner exists; self-hosted, the
+ * operator's cap at its default, so the owner may create).
+ *
+ *  - Creation closed (`/me.canCreateWorkspace` false, the ONE field the test
+ *    rewrites on the wire): a person with one workspace sees the plain
+ *    instance-name header, no menu.
+ *  - Creation open: the same person gets the menu with their one workspace
+ *    and "New workspace". The dialog takes the focus in its field, refuses an
+ *    empty name, goes through its three steps, posts once with an
+ *    Idempotency-Key, and the person LANDS in the new workspace.
+ *  - Downloads follow the active workspace. The new workspace is NOT the
+ *    default one, so a plain anchor navigation (no `X-Workspace-Id`) answers
+ *    404 for the file below: the signature of PRDCT-2426. Each dashboard
+ *    download of that workspace must save the right bytes under the server's
+ *    name: a file of the files page, and the settings export. (The tool's own
+ *    downloads return here with the items series.)
+ *
+ * This project runs LAST (playwright.config.ts): it leaves the owner with a
+ * second workspace, which the other projects never have to know about.
+ */
+
+const SECOND = 'Second Workspace E2E';
+
+const LOOSE_FILE = Buffer.from('a loose file of the second workspace\n');
+
+/** Click, and hand back the download the click started. */
+async function downloadFrom(page: Page, click: () => Promise<void>): Promise<Download> {
+  const [download] = await Promise.all([page.waitForEvent('download', { timeout: 20_000 }), click()]);
+  return download;
+}
+
+async function bytesOf(download: Download): Promise<Buffer> {
+  const path = await download.path();
+  return readFile(path);
+}
+
+test('a workspace is created from the sidebar, the person lands in it, and its downloads follow it', async ({
+  page
+}) => {
+  await test.step('sign in as the owner', async () => {
+    await signInAsOwner(page);
+  });
+
+  let firstWorkspace = { id: '', name: '' };
+  await test.step('creation closed: one workspace, the plain instance-name header, no menu', async () => {
+    const me = await (await page.request.get('/api/v1/me')).json();
+    expect(me.workspaces).toHaveLength(1);
+    expect(me.canCreateWorkspace).toBe(true);
+    firstWorkspace = { id: me.workspaces[0].id, name: me.workspaces[0].name };
+
+    // What an instance with MAX_WORKSPACES_PER_USER=0 answers: the same /me, the flag false.
+    await page.route('**/api/v1/me', async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      await route.fulfill({ response, json: { ...json, canCreateWorkspace: false } });
+    });
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('workspace-switcher')).toHaveCount(0);
+    await expect(
+      page.locator('[data-sidebar="sidebar"]').getByText(INSTANCE_NAME, { exact: true })
+    ).toBeVisible();
+    await page.unroute('**/api/v1/me');
+  });
+
+  let secondId = '';
+  await test.step('creation open: the menu lists the one workspace, then New workspace', async () => {
+    await page.reload();
+    const switcher = page.getByTestId('workspace-switcher');
+    await expect(switcher).toBeVisible({ timeout: 20_000 });
+    await expect(switcher).toContainText(firstWorkspace.name);
+    await switcher.click();
+    const menu = page.getByRole('menu');
+    await expect(menu.getByTestId('workspace-entry')).toHaveCount(1);
+    await expect(menu.getByRole('menuitem', { name: 'New workspace' })).toBeVisible();
+    await menu.getByRole('menuitem', { name: 'New workspace' }).click();
+  });
+
+  await test.step('the dialog: focus in the field, no empty name, three steps, one POST with an Idempotency-Key, the person lands in the new workspace', async () => {
+    // The creation is three steps and a door since the settings pass: the
+    // dialog is named after its step, so it is found by its first title and
+    // followed by role from there.
+    await expect(page.getByRole('dialog', { name: 'Name your workspace' })).toBeVisible();
+    const dialog = page.getByRole('dialog');
+    const field = dialog.getByLabel('Workspace name');
+    await expect(field).toBeFocused();
+    const next = dialog.getByTestId('workspace-step-next');
+    await expect(next).toBeDisabled();
+    await field.fill('   ');
+    await expect(next).toBeDisabled();
+    // The wording is a workspace of the tool, nothing behind it.
+    await expect(dialog).not.toContainText(/organi[sz]ation|hub|antasphere/i);
+
+    await field.fill(SECOND);
+    const posts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/workspaces') {
+        posts.push(request.headers()['idempotency-key'] ?? '');
+      }
+    });
+    const created = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/v1/workspaces'
+    );
+    // Enter in the name field is the first Continue; nothing is posted before the third step's submit.
+    await field.press('Enter');
+    await expect(page.getByRole('dialog', { name: 'Give it a look' })).toBeVisible();
+    await dialog.getByTestId('workspace-step-next').click();
+    await expect(page.getByRole('dialog', { name: 'Bring people in' })).toBeVisible();
+    expect(posts).toHaveLength(0);
+    await dialog.getByRole('button', { name: 'Create workspace' }).click();
+    expect((await created).status()).toBe(201);
+    await expect(page.getByRole('dialog', { name: `${SECOND} is ready` })).toBeVisible();
+    await dialog.getByTestId('workspace-open').click();
+    expect(posts).toHaveLength(1);
+    expect(posts[0]).toMatch(/^ws-create-[0-9a-f]{32}$/);
+
+    // switchWorkspace persisted the choice and reloaded: the shell is the new
+    // workspace's. (The id is read from the list, not from the POST's body:
+    // the page that received it is gone by now.)
+    const switcher = page.getByTestId('workspace-switcher');
+    await expect(switcher).toContainText(SECOND, { timeout: 20_000 });
+    const listed = await (await page.request.get('/api/v1/me')).json();
+    secondId = listed.workspaces.find((w: { name: string }) => w.name === SECOND).id;
+    expect(await page.evaluate(() => localStorage.getItem('platform.workspaceId'))).toBe(secondId);
+    await page.goto('/files');
+    await expect(page.getByRole('heading', { name: 'Files', exact: true })).toBeVisible();
+    await expect(page.getByTestId('workspace-switcher')).toContainText(SECOND);
+
+    await page.getByTestId('workspace-switcher').click();
+    const entries = page.getByRole('menu').getByTestId('workspace-entry');
+    await expect(entries).toHaveCount(2);
+    await page.keyboard.press('Escape');
+
+    // It is NOT the default workspace: a request that names none still means the first one.
+    const me = await (await page.request.get('/api/v1/me')).json();
+    expect(me.workspace.id).toBe(firstWorkspace.id);
+    expect(me.workspaces.find((w: { id: string }) => w.id === secondId).default).toBe(false);
+  });
+
+  const inSecond = () => ({ 'x-workspace-id': secondId });
+  let looseFileId = '';
+
+  await test.step('seed the new workspace: one loose file', async () => {
+    const loose = await page.request.post('/api/v1/files?name=loose-file.txt', {
+      headers: { ...inSecond(), 'content-type': 'text/plain' },
+      data: LOOSE_FILE
+    });
+    expect(loose.status()).toBe(201);
+    looseFileId = (await loose.json()).file.id;
+  });
+
+  await test.step('the bug’s signature: without X-Workspace-Id, what a plain anchor sends, the file answers 404', async () => {
+    const path = `/api/v1/files/${looseFileId}/content`;
+    expect((await page.request.get(path)).status(), path).toBe(404);
+  });
+
+  await test.step('files page and settings export', async () => {
+    await page.goto('/files');
+    const row = page.getByRole('row', { name: /loose-file\.txt/ });
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await row.getByRole('button', { name: 'Open menu' }).click();
+    const loose = await downloadFrom(page, () => page.getByRole('menuitem', { name: 'Download' }).click());
+    expect(loose.suggestedFilename()).toBe('loose-file.txt');
+    expect((await bytesOf(loose)).equals(LOOSE_FILE)).toBe(true);
+
+    await page.goto('/settings');
+    const exported = await downloadFrom(page, () =>
+      page
+        .getByRole('button', { name: /export/i })
+        .first()
+        .click()
+    );
+    // The server's own name for an export, not a name the page made up.
+    expect(exported.suggestedFilename()).toMatch(/^export-.+\.zip$/);
+    expect((await bytesOf(exported)).subarray(0, 2).toString()).toBe('PK');
+  });
+
+  await test.step('switching back from the menu returns to the first workspace', async () => {
+    await page.getByTestId('workspace-switcher').click();
+    await page
+      .getByRole('menu')
+      .getByTestId('workspace-entry')
+      .filter({ hasText: firstWorkspace.name })
+      .click();
+    await expect(page.getByTestId('workspace-switcher')).toContainText(firstWorkspace.name, {
+      timeout: 20_000
+    });
+    expect(await page.evaluate(() => localStorage.getItem('platform.workspaceId'))).toBe(firstWorkspace.id);
+  });
+});
+
+/**
+ * PRDCT-2815: on a self-hosted instance (discovery's sign-in methods carry no
+ * `antasphere`) the person makes a workspace their default from the switcher,
+ * in place. Runs after the test above, which leaves the owner with SECOND;
+ * the default is cleared again at the end, since the `projects` project runs
+ * next and walks the default workspace.
+ */
+test('a workspace is made the default from the switcher, and the Default badge moves to it', async ({
+  page
+}) => {
+  await signInAsOwner(page);
+  const me = await (await page.request.get('/api/v1/me')).json();
+  const second = me.workspaces.find((w: { name: string }) => w.name === SECOND);
+  const first = me.workspaces.find((w: { name: string }) => w.name !== SECOND);
+  expect(second, 'the test above leaves the owner with the second workspace').toBeTruthy();
+  expect(second.default).toBe(false);
+
+  try {
+    await test.step('the badge is on neither workspace before a choice', async () => {
+      await page.goto('/');
+      const switcher = page.getByTestId('workspace-switcher');
+      await expect(switcher).toBeVisible({ timeout: 20_000 });
+      await switcher.click();
+      const entries = page.getByRole('menu').getByTestId('workspace-entry');
+      await expect(entries).toHaveCount(2);
+      await expect(entries.filter({ hasText: SECOND }).getByText('Default', { exact: true })).toHaveCount(0);
+    });
+
+    await test.step('Make default on the second workspace: one PUT, 200', async () => {
+      const entry = page.getByRole('menu').getByTestId('workspace-entry').filter({ hasText: SECOND });
+      await entry.hover();
+      const makeDefault = page.getByTestId('workspace-make-default');
+      await expect(makeDefault).toBeVisible();
+      const put = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          new URL(response.url()).pathname === '/api/v1/me/default-workspace'
+      );
+      await makeDefault.click();
+      const answered = await put;
+      expect(answered.status()).toBe(200);
+      expect(await answered.json()).toEqual({ defaultWorkspaceId: second.id });
+    });
+
+    await test.step('the Default badge is on the second workspace, and the server agrees', async () => {
+      await page.keyboard.press('Escape');
+      await page.getByTestId('workspace-switcher').click();
+      const entries = page.getByRole('menu').getByTestId('workspace-entry');
+      await expect(entries.filter({ hasText: SECOND }).getByText('Default', { exact: true })).toBeVisible({
+        timeout: 10_000
+      });
+      await expect(entries.filter({ hasText: first.name }).getByText('Default', { exact: true })).toHaveCount(
+        0
+      );
+      // The default's own quick actions no longer offer to make it so.
+      await entries.filter({ hasText: SECOND }).hover();
+      await expect(page.getByTestId('workspace-make-default')).toHaveCount(0);
+
+      const after = await (await page.request.get('/api/v1/me')).json();
+      expect(after.workspaces.find((w: { id: string }) => w.id === second.id).default).toBe(true);
+      expect(after.workspaces.filter((w: { default: boolean }) => w.default)).toHaveLength(1);
+    });
+  } finally {
+    const cleared = await page.request.put('/api/v1/me/default-workspace', {
+      data: { workspaceId: null }
+    });
+    expect(cleared.status()).toBe(200);
+  }
+});
+
+/**
+ * PRDCT-2817: the invitation page accepts on the person's OWN act only
+ * (`routes/invite/[token]/+page.svelte`, `$lib/invite-return.ts`). The
+ * instance allows ten invitation lookups and acceptances an hour and the
+ * suite spends them, so this test sends NOTHING to either route on the
+ * server: both are answered from here, and the token is made up. What is
+ * under test is the page: a link alone, a mark for another invitation and an
+ * expired mark accept nothing; a live mark for this invitation accepts once
+ * and lands in the workspace the answer names; and the click on "Sign in
+ * with Antasphere" is what writes the mark.
+ */
+test("the invitation page accepts on the person's own act only", async ({ page, browser, baseURL }) => {
+  const TOKEN = 'e2e-made-up-token';
+  const MARK = `platform.inviteAccept.${TOKEN}`;
+  const OTHER_MARK = 'platform.inviteAccept.another-token';
+  const INVITE_PATH = `/invite/${TOKEN}`;
+
+  await signInAsOwner(page);
+  const me = await (await page.request.get('/api/v1/me')).json();
+  const firstWorkspaceId: string = me.workspaces[0].id;
+  const ownerId: string = me.user.id;
+  const storedBefore = await page.evaluate(() => localStorage.getItem('platform.workspaceId'));
+
+  const lookupBody = {
+    email: OWNER.email,
+    role: 'member',
+    workspaceName: 'Made-up workspace',
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  };
+  const accepts: string[] = [];
+  const lookups: string[] = [];
+  /** Answer the lookup and the accept from the test: nothing reaches the server's rate-limited routes. */
+  async function answerInvitationRoutes(target: Page): Promise<void> {
+    await target.route(
+      (url) => url.pathname === '/api/v1/invitations/lookup',
+      async (route) => {
+        lookups.push(route.request().url());
+        await route.fulfill({ status: 200, json: lookupBody });
+      }
+    );
+    await target.route(
+      (url) => url.pathname === '/api/v1/invitations/accept',
+      async (route) => {
+        accepts.push(route.request().postData() ?? '');
+        await route.fulfill({
+          status: 200,
+          json: { workspaceId: firstWorkspaceId, userId: ownerId, role: 'member' }
+        });
+      }
+    );
+  }
+  const sessionItem = (target: Page, key: string) => target.evaluate((k) => sessionStorage.getItem(k), key);
+  const acceptButton = page.getByRole('button', { name: 'Accept invitation' });
+
+  try {
+    await answerInvitationRoutes(page);
+
+    await test.step('the link alone, even with ?accept=1: the button, and no acceptance', async () => {
+      await page.goto(`${INVITE_PATH}?accept=1`);
+      await expect(acceptButton).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      expect(lookups.length).toBeGreaterThan(0);
+      expect(accepts).toEqual([]);
+    });
+
+    await test.step('a mark for ANOTHER invitation: no acceptance, and that mark stays', async () => {
+      await page.evaluate((k) => sessionStorage.setItem(k, String(Date.now() + 300_000)), OTHER_MARK);
+      await page.reload();
+      await expect(acceptButton).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      expect(accepts).toEqual([]);
+      expect(await sessionItem(page, OTHER_MARK)).not.toBeNull();
+    });
+
+    await test.step('an EXPIRED mark for this invitation: no acceptance, and the mark is gone', async () => {
+      await page.evaluate((k) => sessionStorage.setItem(k, String(Date.now() - 1000)), MARK);
+      await page.reload();
+      await expect(acceptButton).toBeVisible({ timeout: 20_000 });
+      await page.waitForLoadState('networkidle');
+      expect(accepts).toEqual([]);
+      expect(await sessionItem(page, MARK)).toBeNull();
+    });
+
+    await test.step('a LIVE mark for this invitation: one acceptance, the page lands in the workspace it names', async () => {
+      await page.evaluate((k) => sessionStorage.setItem(k, String(Date.now() + 300_000)), MARK);
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible({ timeout: 20_000 });
+      expect(accepts).toHaveLength(1);
+      expect(JSON.parse(accepts[0]!)).toMatchObject({ token: TOKEN });
+      await expect(page).not.toHaveURL(new RegExp(INVITE_PATH));
+      expect(await page.evaluate(() => localStorage.getItem('platform.workspaceId'))).toBe(firstWorkspaceId);
+      expect(await sessionItem(page, MARK)).toBeNull();
+    });
+
+    await test.step('the click on "Sign in with Antasphere" writes the mark (P02)', async () => {
+      // A fresh context: nobody signed in, so the page offers the hub's
+      // button once discovery advertises `antasphere`. The owner's own
+      // session is left alone.
+      const context = await browser.newContext({ baseURL });
+      try {
+        const anon = await context.newPage();
+        await answerInvitationRoutes(anon);
+        const realInstance = await (await anon.request.get('/api/v1/instance')).json();
+        const methods: string[] = realInstance.auth.methods;
+        const instanceBody = {
+          ...realInstance,
+          auth: {
+            ...realInstance.auth,
+            methods: methods.includes('antasphere') ? methods : [...methods, 'antasphere']
+          }
+        };
+        await anon.route(
+          (url) => url.pathname === '/api/v1/instance',
+          (route) => route.fulfill({ status: 200, json: instanceBody })
+        );
+        const signIns: string[] = [];
+        // `redirect: false`: Better Auth's client navigates only on
+        // `redirect: true`, so the page stays where the mark was written. A
+        // navigation to the url would reload this very page, whose mount
+        // TAKES the mark, and the read below would find none.
+        await anon.route(
+          (url) => url.pathname === '/api/v1/auth/sign-in/oauth2',
+          async (route) => {
+            signIns.push(route.request().postData() ?? '');
+            await route.fulfill({ status: 200, json: { url: INVITE_PATH, redirect: false } });
+          }
+        );
+
+        await anon.goto(INVITE_PATH);
+        const hubButton = anon.getByRole('button', { name: 'Sign in with Antasphere' });
+        await expect(hubButton).toBeVisible({ timeout: 20_000 });
+        expect(await sessionItem(anon, MARK)).toBeNull();
+
+        const acceptsBefore = accepts.length;
+        const before = Date.now();
+        const signInCall = anon.waitForRequest(
+          (r) => new URL(r.url()).pathname === '/api/v1/auth/sign-in/oauth2'
+        );
+        await hubButton.click();
+        await signInCall;
+        const after = Date.now();
+        expect(signIns).toHaveLength(1);
+        expect(new URL(anon.url()).pathname).toBe(INVITE_PATH);
+
+        const raw = await sessionItem(anon, MARK);
+        expect(raw, 'the click wrote the mark for this invitation').not.toBeNull();
+        const until = Number(raw);
+        expect(until).toBeGreaterThan(before);
+        expect(until).toBeLessThanOrEqual(after + 10 * 60 * 1000);
+        expect(accepts).toHaveLength(acceptsBefore);
+      } finally {
+        await context.close();
+      }
+    });
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await page.evaluate((stored) => {
+      if (stored === null) localStorage.removeItem('platform.workspaceId');
+      else localStorage.setItem('platform.workspaceId', stored);
+      sessionStorage.removeItem('platform.inviteAccept.another-token');
+    }, storedBefore);
+  }
+});

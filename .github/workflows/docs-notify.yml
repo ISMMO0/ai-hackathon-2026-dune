@@ -1,0 +1,34 @@
+# Ping the docs site (antasphere/docs) when public docs change on prod.
+# Release tags are covered by docs-notify-release.yml; a daily cron on the
+# docs repo backstops both. Requires the antasphere-docs-sync GitHub App's
+# org secrets (DOCS_SYNC_APP_ID / DOCS_SYNC_APP_KEY).
+name: Notify docs site
+
+# DISABLED IN THE TEMPLATE.
+# When enabled, this workflow tells the docs site to sync the docs/ folder of this repository.
+# The template publishes, deploys and dispatches nothing: the only trigger left is a manual
+# run, and every job carries `if: ${{ false }}`, so a manual run does nothing either.
+# A new tool re-enables it by restoring the original trigger below and removing the job guards:
+#
+#   on:
+#     push:
+#       branches: [prod]
+#       paths: ['docs/**']
+on: workflow_dispatch
+
+jobs:
+  notify:
+    if: ${{ false }} # disabled in the template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with:
+          app-id: ${{ secrets.DOCS_SYNC_APP_ID }}
+          private-key: ${{ secrets.DOCS_SYNC_APP_KEY }}
+          owner: antasphere
+          repositories: docs
+      - name: Dispatch docs sync
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh api repos/antasphere/docs/dispatches -f event_type=tool-release

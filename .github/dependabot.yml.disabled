@@ -1,0 +1,40 @@
+# Dependabot is OFF in the template. Version updates are driven by the PRESENCE of
+# `.github/dependabot.yml`: an `updates: []` there did not stop them (ten pull requests opened four
+# hours after it landed), so the file is renamed. A tool turns Dependabot on by renaming this file back
+# to `.github/dependabot.yml`.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # ADR 001: the Better Auth trio is exact-pinned. Bumps are manual and
+      # coordinated — all three together, drift + integration suites green.
+      - dependency-name: better-auth
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      - dependency-name: '@better-auth/oauth-provider'
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+      - dependency-name: '@better-auth/cli'
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

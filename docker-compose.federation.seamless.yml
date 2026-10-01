@@ -1,0 +1,28 @@
+# Seamless-drill overlay for the federation harness (internal/verification.md §H).
+#
+# The base harness serves both apps under ONE parent domain, hub.ant.localhost
+# and starter.ant.localhost with the SSO hint cookie on `ant.localhost`
+# (PRDCT-2825): multi-label `*.localhost` names are loopback-classified (http
+# allowed, no TLS needed: better-auth's SafeUrlSchema rejects `http:` redirect
+# URIs on any public host, `*.lvh.me` included) AND `ant.localhost` is an
+# eTLD+1 under the implicit public-suffix rule, so browsers accept and share
+# `Domain=ant.localhost` cookies between the two apps (verified live in
+# Chromium). Browsers resolve any-depth *.localhost to 127.0.0.1; for host-side
+# curl use `--resolve hub.ant.localhost:3300:127.0.0.1` (macOS's system
+# resolver does not resolve multi-label .localhost) or plain localhost:3300.
+#
+# This overlay adds ONLY what the seamless legs need beyond the base: the
+# registry entry's launchUrl (the /verified "Continue to <tool>" CTA target)
+# and postLogoutRedirectUris (RP-initiated logout landing).
+#
+#   docker compose -f docker-compose.federation.yml \
+#                  -f docker-compose.federation.seamless.yml up -d --no-build
+#
+# Runtime env ONLY, no image/build changes; it layers on the images the base
+# file names. DEV ONLY, like the base file.
+
+services:
+  hub:
+    environment:
+      # Twin of the base registry entry, extended with the seamless fields.
+      - 'TOOL_REGISTRY=[{"slug":"starter-cloud","name":"Hackathon Starter (federation dev)","resourceUrl":"http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/mcp","redirectUris":["http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/api/v1/auth/oauth2/callback/antasphere"],"clientId":"tool-starter-cloud","clientSecret":"federation-dev-client-secret-0001","launchUrl":"http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}","postLogoutRedirectUris":["http://starter.ant.localhost:${FEDERATION_SL_PORT:-3310}/login?signed_out=1"]}]'

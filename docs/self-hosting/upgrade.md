@@ -1,0 +1,57 @@
+# Upgrade
+
+Upgrading a self-hosted instance recreates the containers on a newer image;
+data survives in the Docker volumes and migrations apply themselves at boot.
+How you trigger it depends on how you installed.
+
+**Checkout-based install** (`setup.sh`), one command:
+
+```bash
+./update.sh            # = docker compose pull && docker compose up -d
+```
+
+**Hostinger one-file install**: there is no checkout and no `update.sh`.
+Redeploy the existing Docker Manager project from the template URL,
+`https://deploy.starter.antasphere.com/hostinger/docker-compose.yml`, which
+always serves the current tested pin. Keep the project name and every named
+volume. The full procedure, including the snapshot to take first, is in
+[the Hostinger guide](hostinger.md#upgrading).
+
+Data survives in the `pg_data` and `app_data` volumes. Migrations are
+forward-only and additive-first; the booting replica applies them exactly
+once under a Postgres advisory lock (concurrent replicas wait, then find
+nothing left to do). `/readyz` stays 503 until the schema is current.
+
+## Pinning versions
+
+`latest` follows tagged releases. To pin, set in `.env`:
+
+```bash
+APP_IMAGE=ghcr.io/antasphere/starter:1.2.3
+```
+
+Tags published per release (a `vX.Y.Z` tag): `latest`, `X`, `X.Y`, `X.Y.Z`; every
+push to `prod` publishes `next` and `sha-<commit>` for early testing.
+
+## Rollback
+
+Take a backup before upgrading (`BACKUP_PASSPHRASE=… ./scripts/backup.sh`; without the
+passphrase the script refuses, see [Backup and restore](../operations/backup-restore.md)). Rolling the image
+back works while the schema is compatible (additive migrations tolerate the
+previous app version). After a bad upgrade:
+
+```bash
+# pin the previous version in .env, then
+docker compose up -d
+# if the schema moved beyond compatibility, restore:
+./scripts/restore.sh <STAMP>
+```
+
+## Manual migrations (AUTO_MIGRATE=false)
+
+Operators who gate DDL run the same image once as a one-off:
+
+```bash
+docker compose run --rm -e AUTO_MIGRATE=true app node dist/index.js & sleep 8 && docker compose stop app
+docker compose up -d
+```

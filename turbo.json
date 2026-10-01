@@ -1,0 +1,55 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", "build/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "@app/dashboard#sync": {
+      "cache": false
+    },
+    "@app/dashboard#build": {
+      "dependsOn": ["^build", "@app/dashboard#sync"],
+      "outputs": ["dist/**", "build/**"]
+    },
+    "@app/dashboard#lint": {
+      "dependsOn": ["^build", "@app/dashboard#sync"]
+    },
+    "@app/dashboard#typecheck": {
+      "dependsOn": ["^build", "@app/dashboard#sync"]
+    },
+    "@app/dashboard#test": {
+      "dependsOn": ["^build", "@app/dashboard#sync"]
+    },
+    "@app/server#test:integration": {
+      "dependsOn": ["^build", "@antasphere/chassis-server#test:integration"],
+      "cache": false
+    },
+    "test:e2e": {
+      "cache": false,
+      "passThroughEnv": ["PW_SMOKE_PORT", "PW_SMOKE_PG_PASSWORD"]
+    },
+    "@antasphere/chassis-contract#test": {
+      "dependsOn": ["^build"],
+      "cache": false
+    }
+  },
+  "globalPassThroughEnv": ["HUB_WIRE_SNAPSHOT"]
+}

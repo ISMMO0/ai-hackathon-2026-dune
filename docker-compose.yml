@@ -1,0 +1,140 @@
+# The documented install path (Profile A: single VPS).
+# Upgrade: docker compose pull && docker compose up -d
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/antasphere/starter:latest}
+    build: .
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://app:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/app
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-http://localhost:3000}
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      # Versioned API-key peppers for secret rotation (internal/security-runbooks.md).
+      - API_KEY_PEPPERS=${API_KEY_PEPPERS:-}
+      - SETUP_TOKEN=${SETUP_TOKEN:-}
+      # Break-glass superadmin allowlist (internal/security-runbooks.md). Empty = dormant.
+      - SUPERADMIN_EMAILS=${SUPERADMIN_EMAILS:-}
+      # Orphaned-user cleanup grace in hours. Empty = default (72); 0 disables.
+      - ORPHAN_USER_RETENTION_HOURS=${ORPHAN_USER_RETENTION_HOURS:-}
+      - AUTO_MIGRATE=${AUTO_MIGRATE:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - EMAIL_DRIVER=${EMAIL_DRIVER:-none}
+      - SMTP_URL=${SMTP_URL:-}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - REDIS_URL=${REDIS_URL:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
+      - S3_BUCKET=${S3_BUCKET:-}
+      - S3_REGION=${S3_REGION:-}
+      - S3_ENDPOINT=${S3_ENDPOINT:-}
+      - S3_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-}
+      - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-}
+      # Path-style addressing — required by MinIO and most S3-compatibles.
+      - S3_FORCE_PATH_STYLE=${S3_FORCE_PATH_STYLE:-true}
+      - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
+      # Workspaces one person can own (any member can create another one from
+      # the dashboard). Empty means the app default (10); 0 closes creation.
+      - MAX_WORKSPACES_PER_USER=${MAX_WORKSPACES_PER_USER:-}
+      # General per-principal API quota (requests/minute + 1s spike cap).
+      # Empty means the app defaults (600 + 100); 0 disables consciously.
+      - API_RATE_LIMIT_PER_MINUTE=${API_RATE_LIMIT_PER_MINUTE:-}
+      - API_RATE_LIMIT_BURST=${API_RATE_LIMIT_BURST:-}
+      # Enable ONLY behind a reverse proxy you control (Caddy). The app reads
+      # the rightmost x-forwarded-for hop, so a spoofed one is ignored.
+      - TRUST_PROXY=${TRUST_PROXY:-false}
+      # /metrics is disabled (401) until this is set. setup.sh generates one.
+      - METRICS_TOKEN=${METRICS_TOKEN:-}
+      # Allow the first-boot wizard over plaintext HTTP on a non-loopback
+      # origin. Default false: the owner password and the setup token would
+      # cross the network in the clear.
+      - ALLOW_INSECURE_SETUP=${ALLOW_INSECURE_SETUP:-false}
+      # Demo sign-in (demo links that sign a member in without a password).
+      # Default false; the boot refuses it on a public host not listed in
+      # DEMO_SIGN_IN_HOSTS.
+      - DEMO_SIGN_IN=${DEMO_SIGN_IN:-false}
+      - DEMO_SIGN_IN_HOSTS=${DEMO_SIGN_IN_HOSTS:-}
+      - DEMO_SIGN_IN_EMAIL_DOMAINS=${DEMO_SIGN_IN_EMAIL_DOMAINS:-}
+      # OTLP/HTTP endpoint for trace export. Unset = no export (zero phone-home).
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      # The starter's integrations: Gradium (the voice) and H (the agent in a
+      # cloud browser). Empty = the routes that need one answer 503.
+      - GRADIUM_API_KEY=${GRADIUM_API_KEY:-}
+      - HAI_API_KEY=${HAI_API_KEY:-}
+    ports:
+      # LOOPBACK BY DEFAULT. Docker publishes ports by writing DNAT rules that
+      # bypass ufw's INPUT chain, so a 0.0.0.0 bind here is reachable from the
+      # internet no matter what the host firewall says — the documented `ufw`
+      # step would be silently useless. Terminate TLS in a reverse proxy on
+      # the host (docs/self-hosting/reverse-proxy.md) and leave this alone.
+      # Deliberate exposure is an explicit opt-in: APP_BIND=0.0.0.0 in .env.
+      # APP_PORT changes the HOST port only; in-container the app stays on
+      # 3000 (the healthchecks depend on it).
+      - '${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000'
+    read_only: true
+    volumes:
+      - app_data:/data
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://localhost:3000/healthz']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    # pgvector build of Postgres 17 so products needing embeddings work as-is.
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=app
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    # Uncomment for local development (psql/drizzle against the compose db).
+    # Loopback-only bind — never exposes Postgres beyond the host.
+    # ports:
+    #   - '127.0.0.1:5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U app -d app']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── Optional services (uncomment when needed) ─────────────────────────────
+  # An optional service's variable is never `${VAR:?}`: compose checks a `:?`
+  # for EVERY command on this file, the service on or off, so an install
+  # without the service could not even run `docker compose up`. Give it an
+  # empty default (`${VAR:-}`) and let the service refuse to boot without a
+  # value; CI reads this file with only POSTGRES_PASSWORD set to catch the
+  # next one. The MinIO example below keeps its `:?` lines only because the
+  # block is commented out (compose never interpolates it): MinIO does not
+  # refuse an empty credential (it falls back to minioadmin:minioadmin), so
+  # an operator who turns the block on writes both values in .env first.
+  # minio:
+  #   image: minio/minio:latest
+  #   command: server /data --console-address ":9001"
+  #   environment:
+  #     - MINIO_ROOT_USER=${MINIO_ROOT_USER:?Set MINIO_ROOT_USER in .env}
+  #     - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD in .env}
+  #   volumes:
+  #     - minio_data:/data
+  #
+  # redis:
+  #   image: redis:7-alpine
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', 'ping']
+
+volumes:
+  pg_data:
+  app_data:
+  # minio_data:

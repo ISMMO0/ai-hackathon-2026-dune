@@ -1,0 +1,32 @@
+# Ping the docs site (antasphere/docs) on every release tag so the synced
+# docs and the generated changelog pick the release up within minutes.
+# Requires the antasphere-docs-sync GitHub App's org secrets.
+name: Notify docs site (release)
+
+# DISABLED IN THE TEMPLATE.
+# When enabled, this workflow tells the docs site that a release was tagged.
+# The template publishes, deploys and dispatches nothing: the only trigger left is a manual
+# run, and every job carries `if: ${{ false }}`, so a manual run does nothing either.
+# A new tool re-enables it by restoring the original trigger below and removing the job guards:
+#
+#   on:
+#     push:
+#       tags: ['v*', 'cli-v*']
+on: workflow_dispatch
+
+jobs:
+  notify:
+    if: ${{ false }} # disabled in the template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/create-github-app-token@v1
+        id: app
+        with:
+          app-id: ${{ secrets.DOCS_SYNC_APP_ID }}
+          private-key: ${{ secrets.DOCS_SYNC_APP_KEY }}
+          owner: antasphere
+          repositories: docs
+      - name: Dispatch docs sync
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+        run: gh api repos/antasphere/docs/dispatches -f event_type=tool-release
