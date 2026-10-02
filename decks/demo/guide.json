@@ -1,0 +1,141 @@
+{
+  "lang": "en",
+  "occasion": "AI Hackathon 2026 · 2 October 2026",
+  "team": "Dune",
+  "members": [
+    "Jeff Steemans",
+    "Yassine Iharkachen",
+    "Ismail"
+  ],
+  "title": "DUNE",
+  "subtitle": "A child answers seven questions; H searches the web for real lessons and builds a personal tutor that teaches, speaks and remembers.",
+  "forWhom": "for pupils of 8 to 18 who want to go further than class, and their parents",
+  "app": {
+    "url": "http://127.0.0.1:3000"
+  },
+  "intro": [
+    "Three episodes: Andy builds his own tutor, his parent checks what H found, and Andy takes a first lesson in the Tutor Room."
+  ],
+  "worlds": {
+    "setup": {
+      "name": "What was set up",
+      "text": "A local workspace with one demo account. Andy, 11, is an invented learner who dreams of Mars. No real child's data."
+    },
+    "agent": {
+      "name": "What the agent does",
+      "text": "H browses the open web for lessons that fit the age and level, and writes the tutor's skill.md brain. Gradium reads the tutor aloud. The child and the parent decide what to learn."
+    }
+  },
+  "notFinished": [
+    "The teacher's class view: one request, a path per level.",
+    "Automatic safety screening of each resource, shown with its reason."
+  ],
+  "episodes": [
+    {
+      "title": "Andy builds his tutor",
+      "who": "Andy, 11",
+      "minutes": 2,
+      "situation": "Andy dreams of going to Mars and wants the maths behind it. He opens Tutor Studio; no tutor exists yet.",
+      "steps": [
+        {
+          "do": "Open « Tutor Studio ».",
+          "see": "The first of seven questions: « Hi! What should your tutor call you? »",
+          "shot": "screens/01.jpg",
+          "path": "/studio",
+          "expect": [
+            "What should your tutor call you"
+          ]
+        },
+        {
+          "do": "Type « Andy », « 11 » and « Maths for a mission to Mars », each followed by « Next ».",
+          "see": "« What is your current level? » with three choices.",
+          "shot": "screens/02.jpg",
+          "expect": [
+            "What is your current level?"
+          ]
+        },
+        {
+          "do": "Pick « I know the basics », « Stories and analogies », « Warm and encouraging » and « English ».",
+          "see": "« Ready? » with Andy's profile in six chips.",
+          "shot": "screens/03.jpg",
+          "expect": [
+            "Ready?",
+            "Create my tutor"
+          ]
+        },
+        {
+          "do": "Click « Create my tutor ».",
+          "see": "« Creating your tutor… »: H is researching lessons on the web, about a minute.",
+          "shot": "screens/04.jpg",
+          "expect": [
+            "Creating your tutor"
+          ]
+        },
+        {
+          "do": "Wait for H to finish.",
+          "see": "Andy's tutor, its name and welcome, with « Listen » (Gradium's voice) and « Start learning ».",
+          "shot": "screens/05.jpg",
+          "expect": [
+            "Start learning",
+            "Listen"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "The parent checks what H found",
+      "who": "Andy's parent",
+      "minutes": 1,
+      "situation": "The tutor exists. Before Andy starts, his parent wants to see what it will teach and where it comes from.",
+      "steps": [
+        {
+          "do": "Click « See lessons and sources ».",
+          "see": "The tutor's « Lessons », each with a « Try it: » exercise, and its « Sources », the web pages H used.",
+          "shot": "screens/06.jpg",
+          "expect": [
+            "Lessons",
+            "Sources"
+          ]
+        },
+        {
+          "do": "Scroll to « SKILL.md ».",
+          "see": "The tutor as a skill.md file: « Give this tutor to any AI agent. »",
+          "shot": "screens/07.jpg",
+          "expect": [
+            "SKILL.md"
+          ]
+        }
+      ]
+    },
+    {
+      "title": "A first lesson in the Tutor Room",
+      "who": "Andy, 11",
+      "minutes": 2,
+      "situation": "Andy opens his tutor. The first module is ready and the tutor greets him.",
+      "steps": [
+        {
+          "do": "Click « Start learning ».",
+          "see": "The Tutor Room: the first module, the tutor's welcome and « Write your answer ».",
+          "shot": "screens/08.jpg"
+        },
+        {
+          "do": "Write « I'm ready! What is my first mission? » and click « Send ».",
+          "see": "The tutor answers in its own words and the progress bar moves.",
+          "shot": "screens/09.jpg"
+        },
+        {
+          "do": "Click « Open the tutor's brain ».",
+          "see": "« Tutor's brain · skill.md »: the roadmap, the research notes and Andy's learner state, updated after his answer.",
+          "shot": "screens/10.jpg",
+          "expect": [
+            "Tutor's brain"
+          ]
+        }
+      ]
+    }
+  ],
+  "closing": {
+    "title": "What comes next",
+    "text": "A class view for teachers, the safety screening shown with its reasons, and the same tutor opened from any agent through MCP."
+  }
+}

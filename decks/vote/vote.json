@@ -1,0 +1,22 @@
+{
+  "lang": "en",
+  "occasion": "AI Hackathon 2026 · 2 October 2026",
+  "team": "Dune",
+  "product": "DUNE",
+  "oneLiner": "A personal tutor built around a child's dream, from real lessons an agent finds on the web.",
+  "pitch": {
+    "who": "curious pupils of 8 to 18 and their parents",
+    "need": "want to learn further and faster than their class",
+    "category": "a personal AI tutor",
+    "benefit": "turns a dream like Mars into lessons found on the web, taught aloud",
+    "alternative": "one teacher has 25 pupils, and good lessons online are scattered and unchecked",
+    "difference": "seven questions and H builds a tutor that shows its sources and remembers the child"
+  },
+  "does": { "image": "../demo/screens/06.jpg" },
+  "moment": {
+    "image": "../demo/screens/09.jpg",
+    "text": "Andy, 11, asks his new tutor for his first Mars mission."
+  },
+  "members": ["Jeff Steemans", "Yassine Iharkachen", "Ismail"],
+  "demoUrl": null
+}

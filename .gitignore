@@ -30,3 +30,5 @@ backups
 /api/local.settings.json
 /infra/*.local.bicepparam
 .playwright-mcp/
+decks/*/deck/
+decks/*/check/

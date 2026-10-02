@@ -1,0 +1,62 @@
+{
+  "lang": "en",
+  "occasion": "AI Hackathon 2026 · 2 October 2026",
+  "team": "Dune",
+  "product": "DUNE",
+  "oneLiner": "A personal tutor built around a child's dream, from real lessons an agent finds on the web.",
+  "members": [
+    "Jeff Steemans",
+    "Yassine Iharkachen",
+    "Ismail"
+  ],
+  "problem": {
+    "person": "Andy, 11, dreams of going to Mars.",
+    "text": "His class moves at the pace of 25 others; good lessons online are scattered, unchecked."
+  },
+  "stake": {
+    "number": "20–30",
+    "unit": "pupils per teacher",
+    "text": "A Brussels secondary class: one teacher, every level at once."
+  },
+  "built": {
+    "image": "../demo/screens/05.jpg",
+    "text": "Tutor Studio: seven questions, and an agent builds a tutor with lessons and a voice."
+  },
+  "how": {
+    "title": "How it works",
+    "headline": "The child says what they dream of; H finds the lessons; the tutor teaches and remembers.",
+    "steps": [
+      {
+        "title": "The child",
+        "sub": "Seven questions."
+      },
+      {
+        "title": "H researches",
+        "sub": "Real lessons.",
+        "agent": true
+      },
+      {
+        "title": "The tutor",
+        "sub": "Teaches, speaks."
+      }
+    ],
+    "check": {
+      "label": "The parent checks",
+      "text": "Sources shown. No intelligence label."
+    }
+  },
+  "demo": {
+    "image": "../demo/screens/09.jpg",
+    "text": "Andy creates his tutor, then asks it for his first mission.",
+    "fallback": "If H is slow, this is the tutor it built for Andy today."
+  },
+  "next": {
+    "works": "Tutor Studio, Tutor Room, Gradium's voice and the skill.md brain.",
+    "missing": "The teacher's class view and visible safety screening.",
+    "then": "Families at €9.90 a month; any agent can use a tutor's skill.md."
+  },
+  "close": {
+    "line": "Every child's dream deserves its own teacher.",
+    "demoUrl": null
+  }
+}
