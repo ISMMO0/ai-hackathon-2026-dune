@@ -27,4 +27,6 @@ backups
 # these out so far, which protects nobody else's clone.
 .vscode
 *.local.json
+/api/local.settings.json
+/infra/*.local.bicepparam
 .playwright-mcp/
