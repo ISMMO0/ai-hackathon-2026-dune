@@ -1,4 +1,5 @@
 import Box from '@lucide/svelte/icons/box';
+import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 import Globe from '@lucide/svelte/icons/globe';
 import Sparkles from '@lucide/svelte/icons/sparkles';
 import Volume2 from '@lucide/svelte/icons/volume-2';
@@ -22,6 +23,14 @@ export const tool: ToolContribution<ItemOverview> = {
   // (the server lists a guest no item), without the controls to add one.
   nav: () => [
     {
+      id: 'tutors',
+      title: t('nav.tutors'),
+      blurb: t('nav.blurb.tutors'),
+      href: '/tutors',
+      icon: GraduationCap,
+      pattern: 'orbits'
+    },
+    {
       id: 'items',
       title: t('nav.items'),
       blurb: t('nav.blurb.items'),
@@ -44,7 +53,8 @@ export const tool: ToolContribution<ItemOverview> = {
   // Nothing after the shell's Projects entry: the template has the one section.
   navAfter: () => [],
 
-  phoneTabs: ['items'],
+  // Keep the product itself at the thumb: Items remains available from Workspace.
+  phoneTabs: ['tutors'],
 
   // No signed-out page.
   gateRoutes: [],

@@ -23,10 +23,13 @@
   import { appear, reveal } from '$lib/components/ui/reveal/index.js';
   import Plus from '@lucide/svelte/icons/plus';
   import Link from '@lucide/svelte/icons/link';
+  import GraduationCap from '@lucide/svelte/icons/graduation-cap';
+  import Play from '@lucide/svelte/icons/play';
   import { createPagedList } from '$lib/stores/pagedList.svelte';
   import { errorMessage } from '$lib/api';
   import { itemProjects, itemsToLink } from '$lib/tool/projects-client';
   import { noteExcerpt } from '$lib/tool/items';
+  import { isTutorProject, TUTOR_JOURNAL_MARKER } from '$lib/tool/tutors';
   import { projectCan } from '$lib/projects/can';
   import type { Project } from '$lib/projects/types';
   import { formatTimeAgo } from '$lib/format';
@@ -52,6 +55,8 @@
   });
 
   const items = $derived(list.items);
+  const tutorProject = $derived(isTutorProject(project));
+  const hasTutorJournal = $derived(items.some((item) => item.note.startsWith(TUTOR_JOURNAL_MARKER)));
   const itemCount = $derived(list.nextCursor ? undefined : rowCount('items.countOne', 'items.count'));
 
   // ── Add: the items page's own dialog, the new item linked as it is made ─
@@ -177,6 +182,31 @@
 {/snippet}
 
 <section data-testid="project-items" data-project={projectId}>
+  {#if tutorProject}
+    <div
+      class="mb-8 flex flex-col gap-5 border-y border-primary/25 bg-primary/[0.04] px-1 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      data-testid="tutor-room-entry"
+    >
+      <div class="flex min-w-0 gap-4">
+        <div
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+        >
+          <GraduationCap class="h-5 w-5" />
+        </div>
+        <div>
+          <h2 class="font-semibold">Your tutor is ready</h2>
+          <p class="mt-1 max-w-[58ch] text-sm leading-6 text-muted-foreground">
+            Learn through a guided conversation using this tutor profile and the lessons below.
+          </p>
+        </div>
+      </div>
+      <Button href={`/tutors/${projectId}/room`} class="min-h-11 shrink-0 gap-2">
+        <Play class="h-4 w-4" />
+        {hasTutorJournal ? 'Continue lesson' : 'Start lesson'}
+      </Button>
+    </div>
+  {/if}
+
   <h2 class="font-display text-[19px] font-normal leading-tight tracking-[-0.01em]">
     {t('items.projectTitle')}
   </h2>

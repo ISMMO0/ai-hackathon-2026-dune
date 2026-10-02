@@ -9,6 +9,8 @@ import type { en } from './en';
  * :, ; and inside guillemets, per French convention (i18n.test.ts pins it).
  */
 export const fr: Record<keyof typeof en, string> = {
+  'nav.tutors': 'Atelier des tuteurs',
+  'nav.blurb.tutors': 'Créez des tuteurs personnalisés avec des leçons documentées et une voix.',
   'nav.items': 'Éléments',
   'nav.blurb.items': 'Les éléments de cet espace de travail : un nom et une note chacun.',
   'items.title': 'Éléments',

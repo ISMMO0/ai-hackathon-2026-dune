@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Box from '@lucide/svelte/icons/box';
+import GraduationCap from '@lucide/svelte/icons/graduation-cap';
 import Globe from '@lucide/svelte/icons/globe';
 import Volume2 from '@lucide/svelte/icons/volume-2';
 
@@ -27,15 +28,17 @@ const { listScope } = await import('$lib/stores/pagedList.svelte');
  * dropped from the contribution changes a page and nothing else would say so.
  */
 describe('the menu', () => {
-  it('a member gets items and Try it, then the shell’s projects, right after the overview', () => {
+  it('a member gets Tutor Studio first, then items, Try it and the shell’s projects', () => {
     const nav = buildNav({ role: 'member', origin: 'local' });
     expect(nav.primary.map((i) => [i.id, i.href, i.pattern])).toEqual([
       ['overview', '/', 'rings'],
+      ['tutors', '/tutors', 'orbits'],
       ['items', '/items', 'diamond'],
       ['try', '/try', 'sonar'],
       ['projects', '/projects', 'truss']
     ]);
-    expect(nav.primary[1].icon).toBe(Box);
+    expect(nav.primary[1].icon).toBe(GraduationCap);
+    expect(nav.primary[2].icon).toBe(Box);
     for (const item of nav.primary.slice(1)) expect(item.title && item.blurb).toBeTruthy();
   });
 
@@ -46,32 +49,35 @@ describe('the menu', () => {
 
   it('a guest gets the same entries, and no projects: the pages open for them, empty and without their controls', () => {
     expect(tool.nav({ role: 'member', origin: 'guest' }).map((i) => [i.id, i.href])).toEqual([
+      ['tutors', '/tutors'],
       ['items', '/items'],
       ['try', '/try']
     ]);
     expect(buildNav({ role: 'member', origin: 'guest' }).primary.map((i) => i.id)).toEqual([
       'overview',
+      'tutors',
       'items',
       'try'
     ]);
   });
 
-  it('a phone keeps items and projects as thumb tabs, so nothing of the tool folds behind the workspace entry', () => {
-    expect(tool.phoneTabs).toEqual(['items']);
+  it('a phone keeps Tutor Studio and projects as thumb tabs, while Items folds behind Workspace', () => {
+    expect(tool.phoneTabs).toEqual(['tutors']);
     const nav = buildNav({ role: 'owner', origin: 'local' });
     expect(phoneTabs(nav).map((i) => i.id)).toEqual([
       'overview',
-      'items',
+      'tutors',
       'projects',
       'workspace',
       'settings'
     ]);
-    expect(behindWorkspace(nav).map((i) => i.id)).not.toContain('items');
+    expect(behindWorkspace(nav).map((i) => i.id)).not.toContain('tutors');
     expect(behindWorkspace(nav).map((i) => i.id)).not.toContain('projects');
+    expect(behindWorkspace(nav).map((i) => i.id)).toContain('items');
     // Try it is no thumb tab: on a phone it folds behind the workspace entry.
     expect(behindWorkspace(nav).map((i) => i.id)).toContain('try');
     const workspace = phoneTabs(nav).find((i) => i.id === 'workspace')!;
-    expect(workspace.also).not.toContain('/items');
+    expect(workspace.also).not.toContain('/tutors');
     expect(workspace.also).not.toContain('/projects');
   });
 });
