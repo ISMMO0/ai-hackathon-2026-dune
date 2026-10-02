@@ -1,62 +1,66 @@
 {
   "lang": "en",
-  "occasion": "AI Hackathon 2026 · 2 October 2026",
-  "team": "Dune",
-  "product": "DUNE",
-  "oneLiner": "A personal tutor built around a child's dream, from real lessons an agent finds on the web.",
+  "occasion": "Malt × Antasphere AI Hackathon · 2 October 2026",
+  "team": "DUNE",
+  "product": "DUNE Learning Agent",
+  "oneLiner": "It turns a child's dream into a learning path from real lessons it finds online, read aloud at the child's level.",
   "members": [
     "Jeff Steemans",
     "Yassine Iharkachen",
     "Ismail"
   ],
   "problem": {
-    "person": "Andy, 11, dreams of going to Mars.",
-    "text": "His class moves at the pace of 25 others; good lessons online are scattered, unchecked."
+    "person": "Imma, a Brussels teacher with 20 to 30 pupils aged 12 to 18 per class.",
+    "text": "Levels and motivation differ widely, and vetting extra material costs her evenings."
   },
   "stake": {
     "number": "20–30",
-    "unit": "pupils per teacher",
-    "text": "A Brussels secondary class: one teacher, every level at once."
+    "unit": "pupils per class, one teacher",
+    "text": "From the challenge briefing: one teacher, very different skill and motivation levels."
   },
   "built": {
     "image": "../demo/screens/05.jpg",
-    "text": "Tutor Studio: seven questions, and an agent builds a tutor with lessons and a voice."
+    "text": "An agent that finds free lessons online and builds a tutor at the child's level."
   },
   "how": {
     "title": "How it works",
-    "headline": "The child says what they dream of; H finds the lessons; the tutor teaches and remembers.",
+    "headline": "The child names a dream; the agent browses; the tutor teaches aloud and remembers.",
     "steps": [
       {
-        "title": "The child",
-        "sub": "Seven questions."
+        "title": "You ask",
+        "sub": "Seven questions"
       },
       {
-        "title": "H researches",
-        "sub": "Real lessons.",
+        "title": "The agent",
+        "sub": "H browses the web",
         "agent": true
       },
       {
         "title": "The tutor",
-        "sub": "Teaches, speaks."
+        "sub": "Lessons, sources"
+      },
+      {
+        "title": "The voice",
+        "sub": "Read aloud"
       }
     ],
     "check": {
-      "label": "The parent checks",
-      "text": "Sources shown. No intelligence label."
+      "label": "The adult checks",
+      "text": "Every lesson shows its source."
     }
   },
   "demo": {
     "image": "../demo/screens/09.jpg",
-    "text": "Andy creates his tutor, then asks it for his first mission.",
-    "fallback": "If H is slow, this is the tutor it built for Andy today."
+    "text": "Watch a child ask once and the agent build a personal tutor live.",
+    "fallback": "If the agent is slow tonight, this is the tutor it built earlier today."
   },
   "next": {
-    "works": "Tutor Studio, Tutor Room, Gradium's voice and the skill.md brain.",
-    "missing": "The teacher's class view and visible safety screening.",
-    "then": "Families at €9.90 a month; any agent can use a tutor's skill.md."
+    "works": "Seven-question request, web research by H, lessons with sources, read-aloud.",
+    "missing": "Content screening with reasons, class paths per level, SmartSchool link.",
+    "then": "Soft-skill modules, a pilot with Brussels schools, a native app."
   },
   "close": {
-    "line": "Every child's dream deserves its own teacher.",
+    "line": "Whether or not the dream comes true, the skills do.",
     "demoUrl": null
   }
 }

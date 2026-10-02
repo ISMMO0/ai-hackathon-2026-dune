@@ -1,22 +1,28 @@
 {
   "lang": "en",
-  "occasion": "AI Hackathon 2026 · 2 October 2026",
-  "team": "Dune",
-  "product": "DUNE",
-  "oneLiner": "A personal tutor built around a child's dream, from real lessons an agent finds on the web.",
+  "occasion": "Malt × Antasphere AI Hackathon · 2 October 2026",
+  "team": "DUNE",
+  "product": "DUNE Learning Agent",
+  "oneLiner": "It turns a child's dream into a learning path from real lessons it finds online, read aloud at the child's level.",
   "pitch": {
-    "who": "curious pupils of 8 to 18 and their parents",
-    "need": "want to learn further and faster than their class",
-    "category": "a personal AI tutor",
-    "benefit": "turns a dream like Mars into lessons found on the web, taught aloud",
-    "alternative": "one teacher has 25 pupils, and good lessons online are scattered and unchecked",
-    "difference": "seven questions and H builds a tutor that shows its sources and remembers the child"
+    "who": "parents and teachers of children aged 8 to 18",
+    "need": "want each child to learn at their own level but have no time to find good content",
+    "category": "a learning-path agent",
+    "benefit": "turns a child's dream into a learning path it reads aloud",
+    "alternative": "adults search the web at night and still can't tell what is right for the child's level",
+    "difference": "the child names a dream and gets a tutor built from real lessons, each with its source"
   },
-  "does": { "image": "../demo/screens/06.jpg" },
+  "does": {
+    "image": "../demo/screens/06.jpg"
+  },
   "moment": {
     "image": "../demo/screens/09.jpg",
-    "text": "Andy, 11, asks his new tutor for his first Mars mission."
+    "text": "Andy, 11, names his dream and watches the agent build his own tutor."
   },
-  "members": ["Jeff Steemans", "Yassine Iharkachen", "Ismail"],
+  "members": [
+    "Jeff Steemans",
+    "Yassine Iharkachen",
+    "Ismail"
+  ],
   "demoUrl": null
 }
