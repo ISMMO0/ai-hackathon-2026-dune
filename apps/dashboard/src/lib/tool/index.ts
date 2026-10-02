@@ -26,7 +26,7 @@ export const tool: ToolContribution<ItemOverview> = {
       id: 'tutors',
       title: t('nav.tutors'),
       blurb: t('nav.blurb.tutors'),
-      href: '/tutors',
+      href: '/studio',
       icon: GraduationCap,
       pattern: 'orbits'
     },

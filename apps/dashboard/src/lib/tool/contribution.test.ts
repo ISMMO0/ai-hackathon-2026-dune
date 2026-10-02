@@ -32,7 +32,7 @@ describe('the menu', () => {
     const nav = buildNav({ role: 'member', origin: 'local' });
     expect(nav.primary.map((i) => [i.id, i.href, i.pattern])).toEqual([
       ['overview', '/', 'rings'],
-      ['tutors', '/tutors', 'orbits'],
+      ['tutors', '/studio', 'orbits'],
       ['items', '/items', 'diamond'],
       ['try', '/try', 'sonar'],
       ['projects', '/projects', 'truss']
@@ -49,7 +49,7 @@ describe('the menu', () => {
 
   it('a guest gets the same entries, and no projects: the pages open for them, empty and without their controls', () => {
     expect(tool.nav({ role: 'member', origin: 'guest' }).map((i) => [i.id, i.href])).toEqual([
-      ['tutors', '/tutors'],
+      ['tutors', '/studio'],
       ['items', '/items'],
       ['try', '/try']
     ]);
@@ -77,7 +77,7 @@ describe('the menu', () => {
     // Try it is no thumb tab: on a phone it folds behind the workspace entry.
     expect(behindWorkspace(nav).map((i) => i.id)).toContain('try');
     const workspace = phoneTabs(nav).find((i) => i.id === 'workspace')!;
-    expect(workspace.also).not.toContain('/tutors');
+    expect(workspace.also).not.toContain('/studio');
     expect(workspace.also).not.toContain('/projects');
   });
 });

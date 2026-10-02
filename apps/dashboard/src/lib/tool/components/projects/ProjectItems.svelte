@@ -204,7 +204,7 @@
         </div>
       </div>
       <a
-        href={`/tutors/${projectId}/room`}
+        href={`/studio/tutors/${projectId}`}
         class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-sky-600 px-5 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400"
       >
         <Play class="h-4 w-4" />
