@@ -4,7 +4,7 @@
 
 - Azure CLI signed in with `az login`.
 - Azure Functions Core Tools v4 (`func`).
-- Python 3.14 for local development. Flex Consumption currently supports Python 3.14.
+- Python 3.13 for local development. The Function App uses Python 3.13 because Azure Functions Core Tools remote builds for Flex Consumption do not yet support Python 3.14.
 - An existing resource group and an existing Azure AI Foundry / Azure OpenAI account plus model deployment.
 
 ## Infrastructure
@@ -27,9 +27,9 @@ Edit `infra/main.local.bicepparam` with the Azure OpenAI endpoint, model deploym
 
 `infra/deploy.sh` remains available for Bash environments and requires a resource group argument.
 
-The Function uses Python 3.14, the newest version listed for Flex Consumption in Microsoft Learn on 2026-10-02. Sweden Central is verified by `az functionapp list-flexconsumption-locations` on this machine.
+The Function uses Python 3.13. Although Python 3.14 is listed for Flex Consumption, Azure Functions Core Tools remote builds for Flex Consumption do not yet support it; Python 3.13 keeps `func azure functionapp publish --python` operational. Sweden Central is verified by `az functionapp list-flexconsumption-locations` on this machine.
 
-Storage is accessed through the Function system-assigned managed identity. The template assigns `Storage Blob Data Owner` (the host minimum) and `Storage Table Data Contributor` for host diagnostics. It intentionally adds no queue role because this HTTP-only app has no queue/blob bindings.
+Storage is accessed through the Function system-assigned managed identity. The template assigns `Storage Blob Data Owner` (the host minimum), `Storage Table Data Contributor` for host diagnostics and Durable state, and `Storage Queue Data Contributor` for Durable orchestration queues.
 
 ## Publish and test
 
@@ -51,6 +51,8 @@ curl -X POST -H "Content-Type: application/json" \
   -d '{"topic":"Azure Functions","audience":{"role":"developer"},"sources":[]}' \
   https://fa-<project>-sc01.azurewebsites.net/api/generate
 ```
+
+`POST /api/generate` returns `202` with a `jobId`. Poll `GET /api/generate/{jobId}` with the same Function key until its `status` is `Completed` or `Failed`. The `skill.md` placeholder is returned only after completion. Durable Functions persists this state in the configured Storage account, so the HTTP request does not remain open during a long pipeline.
 
 The Function key stays server-side. No browser call or frontend integration is added in this baseline; add a backend proxy in the existing application before any browser feature invokes `llm-ping` or `generate`.
 
