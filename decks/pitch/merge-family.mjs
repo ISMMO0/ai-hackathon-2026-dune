@@ -14,7 +14,8 @@ html = html
   .replace(/<style id="fam-style">[\s\S]*?<\/style>\n?/, '')
   .replace(/<script id="fam-script">[\s\S]*?<\/script>\n?/, '')
   .replace(/<figure class="fam-scene">[\s\S]*?<\/figure>/, '<canvas class="fig" data-fig="interference"></canvas>')
-  .replace(' has-family', '');
+  .replace(' has-family', '')
+  .replace(/<video class="demo-video"[^>]*><\/video>/,'<img src="assets/demo.jpg" alt="Live demo" decoding="async">');
 
 for (const f of ['scene.jpg', 'clip-0.mp3', 'clip-1.mp3', 'clip-2.mp3']) {
   fs.copyFileSync(path.join(HERE, 'family', f), path.join(deck, 'assets', `family-${f}`));
@@ -33,6 +34,13 @@ const scene =
     .join('') +
   spots.map((s) => `<audio data-clip="${s.clip}" preload="auto" src="assets/family-clip-${s.clip}.mp3"></audio>`).join('') +
   `<button type="button" class="fam-all">▶ Play the conversation · 14 s</button></figure>`;
+
+fs.copyFileSync(path.join(HERE, 'media', 'videodune.mp4'), path.join(deck, 'assets', 'demo-video.mp4'));
+// The live demo slide: the team's recorded demo in place of the screenshot.
+html = html.replace(
+  /(data-cat="Live demo"><figure class="plate ">)<img src="assets\/demo.jpg" alt="Live demo" decoding="async">/,
+  '$1<video class="demo-video" src="assets/demo-video.mp4#t=0.1" controls playsinline preload="auto"></video>'
+);
 
 const before = html;
 html = html.replace(
@@ -57,6 +65,7 @@ const style = `<style id="fam-style">
 .fam-spot:focus-visible, .fam-all:focus-visible { outline: 3px solid #181614; outline-offset: 2px; }
 .fam-spot.playing { background: rgba(233,201,141,.35); }
 .fam-all { position: absolute; right: 0; bottom: -58px; font: inherit; font-size: 16px; background: #181614; color: #f0efea; border: 0; border-radius: 6px; padding: 10px 16px; cursor: pointer; pointer-events: auto; }
+.demo-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #111; pointer-events: auto; }
 </style>`;
 
 const script = `<script id="fam-script">
@@ -87,6 +96,12 @@ const script = `<script id="fam-script">
     const n = b.dataset.clip;
     if (!clip(n).paused) stop(); else play(n);
   }));
+  document.querySelectorAll('.demo-video').forEach((v) => {
+    v.addEventListener('click', (e) => e.stopPropagation());
+    const host = v.closest('.slide');
+    new MutationObserver(() => { if (!host.classList.contains('is-current')) v.pause(); })
+      .observe(host, { attributes: true, attributeFilter: ['class'] });
+  });
   slide.querySelector('.fam-all').addEventListener('click', (e) => { e.stopPropagation(); play('0', ['1', '2']); });
   new MutationObserver(() => { if (!slide.classList.contains('is-current')) stop(); })
     .observe(slide, { attributes: true, attributeFilter: ['class'] });
