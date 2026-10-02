@@ -13,17 +13,14 @@
   import type { Project } from '$lib/projects/types';
   import { fromBase64 } from '$lib/tool/wav';
   import type { Run } from '@app/contract';
+  import { TUTOR_QUESTIONS, isTutorProject, tutorProjectName, type TutorProfile } from '$lib/tool/tutors';
   import {
-    TUTOR_QUESTIONS,
-    buildTutorResearchInstruction,
-    isTutorProject,
-    lessonNote,
-    parseTutorResearch,
-    tutorProjectDescription,
-    tutorProjectName,
-    type TutorProfile,
-    type TutorResearch
-  } from '$lib/tool/tutors';
+    buildSkillResearchInstruction,
+    parseSkillResearch,
+    skillItems,
+    tutorSkillProjectDescription,
+    type TutorSkill
+  } from '$lib/tool/tutor-skill';
 
   let { data } = $props();
 
@@ -46,7 +43,7 @@
   let draft = $state('');
   let profile = $state<TutorProfile>(emptyProfile());
   let activeRun = $state<Run | null>(null);
-  let research = $state<TutorResearch | null>(null);
+  let research = $state<TutorSkill | null>(null);
   let createdProject = $state<Project | null>(null);
   let createError = $state<string | null>(null);
   let speaking = $state(false);
@@ -113,7 +110,7 @@
     phase = 'researching';
     createError = null;
     try {
-      const { run } = await api.createRun({ instruction: buildTutorResearchInstruction(profile) });
+      const { run } = await api.createRun({ instruction: buildSkillResearchInstruction(profile) });
       activeRun = run;
 
       while (!disposed && activeRun.state === 'running') {
@@ -126,19 +123,17 @@
         throw new Error(activeRun.error || 'H could not complete the curriculum research.');
       }
 
-      research = parseTutorResearch(activeRun.answer, profile);
+      // H researched; the answer becomes the tutor's skill.md, stored one Item per section.
+      const skill = parseSkillResearch(activeRun.answer, profile);
+      research = skill;
       const project = await projects.create({
         name: tutorProjectName(profile),
-        description: tutorProjectDescription(profile, research).slice(0, 2000)
+        description: tutorSkillProjectDescription(skill)
       });
 
       await Promise.all(
-        research.lessons.map((lesson, index) =>
-          api.createItem({
-            name: `${index + 1}. ${lesson.title}`.slice(0, 200),
-            note: lessonNote(lesson, research!),
-            projectIds: [project.id]
-          })
+        skillItems(skill).map((section) =>
+          api.createItem({ name: section.name, note: section.note, projectIds: [project.id] })
         )
       );
 
@@ -167,7 +162,7 @@
     voiceError = null;
     speaking = true;
     try {
-      const { audio } = await api.speak(research.welcome);
+      const { audio } = await api.speak(research.teacher.welcome);
       stopPlayback();
       const context = new AudioContext();
       const buffer = await context.decodeAudioData(fromBase64(audio).slice().buffer as ArrayBuffer);
@@ -333,7 +328,7 @@
         <!-- H at work -->
         <div class="py-10 text-center" aria-live="polite">
           <LoaderCircle class="mx-auto h-10 w-10 animate-spin text-sky-500 motion-reduce:animate-none" />
-          <h1 class="mt-6 text-2xl font-semibold">Creating your tutor…</h1>
+          <h1 class="mt-6 text-2xl font-semibold">Researching and writing your tutor's plan…</h1>
           <p class="mt-2 text-sm text-muted-foreground">About a minute</p>
           {#if activeRun?.liveUrl}
             <a
@@ -354,8 +349,14 @@
           >
             <GraduationCap class="h-8 w-8" />
           </div>
-          <h1 class="mt-5 text-2xl font-semibold sm:text-3xl">{research.tutorName}</h1>
-          <p class="mx-auto mt-3 max-w-md leading-7 text-muted-foreground">{research.welcome}</p>
+          <h1 class="mt-5 text-2xl font-semibold sm:text-3xl">{research.teacher.name}</h1>
+          <p class="mx-auto mt-3 max-w-md leading-7 text-muted-foreground">{research.teacher.welcome}</p>
+          <p class="mt-3 text-sm text-sky-700 dark:text-sky-300">
+            🧠 {research.roadmap.length} modules · {research.roadmap.reduce(
+              (total, module) => total + module.lessons.length,
+              0
+            )} lessons · skill ready
+          </p>
           <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <button
               type="button"

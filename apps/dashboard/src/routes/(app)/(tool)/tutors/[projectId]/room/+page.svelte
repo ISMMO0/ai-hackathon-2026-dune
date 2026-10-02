@@ -2,11 +2,15 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { page } from '$app/state';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+  import Brain from '@lucide/svelte/icons/brain';
+  import Check from '@lucide/svelte/icons/check';
   import ExternalLink from '@lucide/svelte/icons/external-link';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+  import Search from '@lucide/svelte/icons/search';
   import Send from '@lucide/svelte/icons/send';
   import Volume2 from '@lucide/svelte/icons/volume-2';
-  import { api, errorMessage } from '$lib/api';
+  import X from '@lucide/svelte/icons/x';
+  import { api, errorMessage, PlatformApiError } from '$lib/api';
   import { projects } from '$lib/projects/client';
   import { projectCan } from '$lib/projects/can';
   import type { Project } from '$lib/projects/types';
@@ -14,43 +18,85 @@
   import {
     TUTOR_JOURNAL_MARKER,
     TUTOR_JOURNAL_NAME,
-    buildTutorChatInstruction,
     isTutorProject,
-    parseTutorChatReply,
     parseTutorJournal,
     serializeTutorJournal,
     tutorWelcome,
     type TutorChatMessage
   } from '$lib/tool/tutors';
+  import {
+    applyLearnerPatch,
+    applyModuleResearch,
+    buildConversationInput,
+    buildHTurnInstruction,
+    buildModuleResearchInstruction,
+    buildTutorSystemPrompt,
+    buildWebResearchInstruction,
+    compareLessons,
+    legacySkill,
+    moduleOf,
+    moduleToPrepare,
+    parseLearnerState,
+    parseSkillItems,
+    parseTutorTurn,
+    renderSkillMarkdown,
+    skillKeyOf,
+    skillSection,
+    type SkillSectionKey,
+    type TutorSkill,
+    type TutorTurn
+  } from '$lib/tool/tutor-skill';
   import { fromBase64 } from '$lib/tool/wav';
   import type { Item, Run } from '@app/contract';
 
   let { data } = $props();
 
+  type BrainMode = 'azure' | 'h';
+  type LlmRespond = (req: {
+    input: string;
+    instructions?: string;
+    model?: 'luna' | 'terra';
+  }) => Promise<{ text: string }>;
+
+  // The Azure route lands with the LLM integration; until then (or when its key is unset) H is the brain.
+  const llmRespond = (api as unknown as { llmRespond?: LlmRespond }).llmRespond?.bind(api);
+
   const projectId = $derived(page.params.projectId ?? '');
   let project = $state<Project | null>(null);
-  let lessons = $state<Item[]>([]);
+  let skill = $state<TutorSkill | null>(null);
+  let sections = $state<Partial<Record<SkillSectionKey, Item>>>({});
   let journal = $state<Item | null>(null);
   let messages = $state<TutorChatMessage[]>([]);
-  let progress = $state(0);
   let draft = $state('');
   let loading = $state(true);
   let loadError = $state<string | null>(null);
   let sendError = $state<string | null>(null);
   let voiceError = $state<string | null>(null);
   let thinking = $state(false);
+  let researching = $state<string | null>(null);
+  let preparingModule = $state<number | null>(null);
   let speakingId = $state<string | null>(null);
   let saveState = $state<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  let brainMode = $state<BrainMode>(llmRespond ? 'azure' : 'h');
+  let brainOpen = $state(false);
+  let stateFlash = $state(0);
   let activeRun = $state<Run | null>(null);
   let lastRunUrl = $state<string | null>(null);
   let messageList: HTMLElement | null = $state(null);
   let disposed = false;
+  const prepareFailed: number[] = [];
   let playback: { context: AudioContext; source: AudioBufferSourceNode } | null = null;
 
   const canPersist = $derived(project ? projectCan.write(project) : false);
-
-  // Presentation only: the labels the room shows, read from the Project and its lessons.
-  const lessonTitle = (name: string) => name.replace(/^\d+\.\s*/, '').replace(/^Lesson\s+\d+:\s*/i, '');
+  const progress = $derived(skill?.state.progress ?? 0);
+  const currentModule = $derived(skill ? moduleOf(skill, skill.state.currentLesson) : null);
+  const skillMarkdown = $derived(skill ? renderSkillMarkdown(skill) : '');
+  const skillFixed = $derived(skillMarkdown.split('## Learner state')[0]);
+  const skillLiving = $derived(
+    skillMarkdown.includes('## Learner state')
+      ? `## Learner state${skillMarkdown.split('## Learner state')[1]}`
+      : ''
+  );
 
   const messageId = () =>
     globalThis.crypto?.randomUUID?.() ?? `message-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -73,22 +119,37 @@
 
       project = loadedProject;
       journal = result.items.find((item) => item.note.startsWith(TUTOR_JOURNAL_MARKER)) ?? null;
-      lessons = result.items
-        .filter((item) => !item.note.startsWith(TUTOR_JOURNAL_MARKER))
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      const found: Partial<Record<SkillSectionKey, Item>> = {};
+      for (const item of result.items) {
+        const key = skillKeyOf(item.note);
+        if (key) found[key] = item;
+      }
+      sections = found;
 
       const saved = journal ? parseTutorJournal(journal.note) : null;
-      progress = saved?.progress ?? 0;
+      let loaded = parseSkillItems(result.items);
+      if (!loaded) {
+        // A tutor made before the skill existed: its lesson Items become module 1.
+        const lessonItems = result.items
+          .filter((item) => !item.note.startsWith(TUTOR_JOURNAL_MARKER) && !skillKeyOf(item.note))
+          .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        loaded = legacySkill(loadedProject, lessonItems, saved?.progress ?? 0);
+        if (found.state) loaded.state = parseLearnerState(found.state.note);
+      }
+      skill = loaded;
+
       messages = saved?.messages.length
         ? saved.messages
         : [
             {
               id: messageId(),
               role: 'tutor',
-              text: tutorWelcome(loadedProject.name, loadedProject.description ?? '')
+              text:
+                loaded.teacher.welcome || tutorWelcome(loadedProject.name, loadedProject.description ?? '')
             }
           ];
       await scrollToLatest();
+      void prepareNextModule();
     } catch (error) {
       loadError = errorMessage(error, 'The Tutor Room could not be opened.');
     } finally {
@@ -96,25 +157,103 @@
     }
   }
 
-  async function persistJournal() {
-    if (!project || !canPersist) return;
+  async function saveSection(key: SkillSectionKey) {
+    if (!project || !skill || !canPersist) return;
+    const draftSection = skillSection(skill, key);
+    const existing = sections[key];
+    const item = existing
+      ? await api.updateItem(existing.id, { name: draftSection.name, note: draftSection.note })
+      : (await api.createItem({ name: draftSection.name, note: draftSection.note, projectIds: [project.id] }))
+          .item;
+    sections = { ...sections, [key]: item };
+  }
+
+  async function persistTurn() {
+    if (!project || !skill || !canPersist) return;
     saveState = 'saving';
-    const note = serializeTutorJournal(messages, progress, new Date().toISOString());
+    const note = serializeTutorJournal(messages, skill.state.progress, new Date().toISOString());
     try {
-      if (journal) {
-        journal = await api.updateItem(journal.id, { note });
-      } else {
-        journal = (await api.createItem({ name: TUTOR_JOURNAL_NAME, note, projectIds: [project.id] })).item;
-      }
+      await Promise.all([
+        saveSection('state'),
+        journal
+          ? api.updateItem(journal.id, { note }).then((item) => (journal = item))
+          : api
+              .createItem({ name: TUTOR_JOURNAL_NAME, note, projectIds: [project.id] })
+              .then(({ item }) => (journal = item))
+      ]);
       saveState = 'saved';
     } catch {
       saveState = 'failed';
     }
   }
 
+  /** One H run, polled to its answer. */
+  async function runH(instruction: string, track = true): Promise<string> {
+    const { run } = await api.createRun({ instruction });
+    let current = run;
+    if (track) {
+      activeRun = current;
+      lastRunUrl = current.liveUrl;
+    }
+    while (!disposed && current.state === 'running') {
+      await wait(2500);
+      if (disposed) throw new Error('The room was closed.');
+      current = await api.getRun(current.id);
+      if (track) {
+        activeRun = current;
+        lastRunUrl = current.liveUrl ?? lastRunUrl;
+      }
+    }
+    if (current.state !== 'completed' || !current.answer) {
+      throw new Error(current.error || 'H could not complete this task.');
+    }
+    return current.answer;
+  }
+
+  const llmUnavailable = (error: unknown) =>
+    error instanceof PlatformApiError && (error.status === 404 || error.status === 503);
+
+  /** The brain's turn: Azure reads the whole skill.md and may ask H to research; H answers alone otherwise. */
+  async function brainTurn(current: TutorSkill): Promise<TutorTurn> {
+    if (brainMode === 'azure' && llmRespond) {
+      try {
+        const first = parseTutorTurn(
+          (
+            await llmRespond({
+              instructions: buildTutorSystemPrompt(current),
+              input: buildConversationInput(messages)
+            })
+          ).text
+        );
+        if (!first.research) return first;
+
+        // The brain chose the tool: say so, let H research, then answer with what it found.
+        messages = [...messages, { id: messageId(), role: 'tutor', text: first.reply }];
+        researching = first.research;
+        await scrollToLatest();
+        const found = await runH(buildWebResearchInstruction(current, first.research));
+        const second = parseTutorTurn(
+          (
+            await llmRespond({
+              instructions: buildTutorSystemPrompt(current, false),
+              input: buildConversationInput(messages, `Research results for "${first.research}":\n${found}`)
+            })
+          ).text
+        );
+        return { ...second, research: null, state: { ...first.state, ...second.state } };
+      } catch (error) {
+        if (!llmUnavailable(error)) throw error;
+        brainMode = 'h';
+      } finally {
+        researching = null;
+      }
+    }
+    return parseTutorTurn(await runH(buildHTurnInstruction(current, messages)));
+  }
+
   async function sendMessage(text = draft) {
     const learnerText = text.trim();
-    if (!learnerText || !project || thinking) return;
+    if (!learnerText || !project || !skill || thinking) return;
 
     sendError = null;
     draft = '';
@@ -123,40 +262,41 @@
     await scrollToLatest();
 
     try {
-      const { run } = await api.createRun({
-        instruction: buildTutorChatInstruction({
-          projectId: project.id,
-          projectName: project.name,
-          projectDescription: project.description ?? '',
-          lessons,
-          messages,
-          progress
-        })
-      });
-      activeRun = run;
-      lastRunUrl = run.liveUrl;
-
-      while (!disposed && activeRun.state === 'running') {
-        await wait(2500);
-        if (disposed) return;
-        activeRun = await api.getRun(activeRun.id);
-        lastRunUrl = activeRun.liveUrl ?? lastRunUrl;
-      }
-
-      if (activeRun.state !== 'completed' || !activeRun.answer) {
-        throw new Error(activeRun.error || 'H could not complete this tutor turn.');
-      }
-
-      const result = parseTutorChatReply(activeRun.answer, progress);
-      progress = result.progress;
-      messages = [...messages, { id: messageId(), role: 'tutor', text: result.reply }];
+      const turn = await brainTurn(skill);
+      messages = [...messages, { id: messageId(), role: 'tutor', text: turn.reply }];
+      skill = { ...skill, state: applyLearnerPatch(skill.state, turn.state) };
+      stateFlash += 1;
       await scrollToLatest();
-      await persistJournal();
+      await persistTurn();
+      void prepareNextModule();
     } catch (error) {
       sendError = errorMessage(error, 'The tutor could not answer. Please try again.');
     } finally {
       thinking = false;
       activeRun = null;
+    }
+  }
+
+  /** Detail the next module of the roadmap in the background, before the student gets there. */
+  async function prepareNextModule() {
+    if (!skill || !canPersist || preparingModule !== null) return;
+    const module = moduleToPrepare(skill);
+    if (!module || prepareFailed.includes(module.number)) return;
+    preparingModule = module.number;
+    try {
+      const answer = await runH(buildModuleResearchInstruction(skill, module), false);
+      if (disposed || !skill) return;
+      skill = applyModuleResearch(skill, module.number, answer);
+      stateFlash += 1;
+      await Promise.all([
+        saveSection(`module-${module.number}`),
+        saveSection('roadmap'),
+        saveSection('research')
+      ]);
+    } catch {
+      prepareFailed.push(module.number);
+    } finally {
+      preparingModule = null;
     }
   }
 
@@ -253,6 +393,18 @@
             <ExternalLink class="h-4 w-4" />
           </a>
         {/if}
+        <button
+          type="button"
+          class="relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sky-600 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:text-sky-300 dark:hover:bg-sky-950/60"
+          aria-label="Open the tutor's brain"
+          title="Tutor's brain"
+          onclick={() => (brainOpen = true)}
+        >
+          <Brain class="h-5 w-5" />
+          {#if preparingModule !== null}
+            <span class="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-amber-400"></span>
+          {/if}
+        </button>
         <span
           class="shrink-0 rounded-full bg-sky-50 px-3 py-1 text-sm font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-200"
           role="progressbar"
@@ -263,27 +415,32 @@
         >
       </header>
 
-      <!-- Lessons -->
-      {#if lessons.length}
-        <nav aria-label="Lessons">
+      <!-- Lessons of the current module -->
+      {#if currentModule && skill}
+        <nav aria-label={`Module ${currentModule.number}: ${currentModule.title}`}>
+          <p class="px-1 pb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+            Module {currentModule.number} of {skill.roadmap.length} · {currentModule.title}
+          </p>
           <ol class="flex gap-2 overflow-x-auto pb-3 [scrollbar-width:none]">
-            {#each lessons as lesson, index (lesson.id)}
+            {#each currentModule.lessons as lesson (lesson.id)}
+              {@const done = compareLessons(lesson.id, skill.state.currentLesson) < 0}
+              {@const current = lesson.id === skill.state.currentLesson}
               <li class="shrink-0">
                 <button
                   type="button"
-                  class="inline-flex min-h-11 max-w-[14rem] items-center gap-2 rounded-full bg-sky-50 py-1 pl-1 pr-4 text-sm text-slate-700 transition-colors hover:bg-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-50 dark:bg-sky-950/50 dark:text-slate-200 dark:hover:bg-sky-950"
+                  class="inline-flex min-h-11 max-w-[14rem] items-center gap-2 rounded-full py-1 pl-1 pr-4 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-50 {current
+                    ? 'bg-sky-600 text-white dark:bg-sky-500 dark:text-slate-950'
+                    : 'bg-sky-50 text-slate-700 hover:bg-sky-100 dark:bg-sky-950/50 dark:text-slate-200 dark:hover:bg-sky-950'}"
                   disabled={thinking}
-                  title={lessonTitle(lesson.name)}
-                  onclick={() =>
-                    void sendMessage(
-                      `Let's begin lesson ${index + 1}: ${lesson.name.replace(/^\d+\.\s*/, '')}.`
-                    )}
+                  title={lesson.title}
+                  onclick={() => void sendMessage(`Let's do lesson ${lesson.id}: ${lesson.title}.`)}
                 >
                   <span
                     class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-sky-700 dark:bg-sky-900 dark:text-sky-200"
-                    >{index + 1}</span
                   >
-                  <span class="truncate">{lessonTitle(lesson.name)}</span>
+                    {#if done}<Check class="h-4 w-4" />{:else}{lesson.id}{/if}
+                  </span>
+                  <span class="truncate">{lesson.title}</span>
                 </button>
               </li>
             {/each}
@@ -347,6 +504,11 @@
               ></span>
               <span class="sr-only">Your tutor is thinking</span>
             </div>
+            {#if researching}
+              <p class="ml-1 mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                <Search class="h-3 w-3" /> Looking up: {researching}
+              </p>
+            {/if}
             {#if activeRun?.liveUrl}
               <a
                 href={activeRun.liveUrl}
@@ -395,3 +557,69 @@
     </section>
   {/if}
 </div>
+
+{#if brainOpen && skill}
+  <div class="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true" aria-label="Tutor's brain">
+    <button
+      type="button"
+      class="absolute inset-0 bg-slate-900/30"
+      aria-label="Close the tutor's brain"
+      onclick={() => (brainOpen = false)}
+    ></button>
+    <aside class="relative flex h-full w-full max-w-lg flex-col bg-white shadow-2xl dark:bg-slate-950">
+      <header class="flex items-center gap-2 border-b border-sky-100 px-4 py-3 dark:border-sky-900/60">
+        <Brain class="h-5 w-5 text-sky-600 dark:text-sky-300" />
+        <h2 class="flex-1 font-semibold">Tutor's brain · skill.md</h2>
+        <span
+          class="rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-sky-950/60 dark:text-sky-200"
+          title="Who answers in the chat"
+        >
+          {brainMode === 'azure' ? 'Azure LLM + H tool' : 'H'}
+        </span>
+        <button
+          type="button"
+          class="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-500 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:hover:bg-sky-950/60"
+          aria-label="Close"
+          onclick={() => (brainOpen = false)}
+        >
+          <X class="h-5 w-5" />
+        </button>
+      </header>
+      <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {#if preparingModule !== null}
+          <p
+            class="mb-3 flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+          >
+            <LoaderCircle class="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            H is researching module {preparingModule} so it is ready in time
+          </p>
+        {/if}
+        {#key stateFlash}
+          <pre
+            class="brain-flash whitespace-pre-wrap rounded-xl border border-sky-200 bg-sky-50/70 p-3 font-mono text-xs leading-5 text-slate-800 dark:border-sky-800 dark:bg-sky-950/40 dark:text-slate-100">{skillLiving}</pre>
+        {/key}
+        <pre
+          class="mt-4 whitespace-pre-wrap font-mono text-xs leading-5 text-slate-600 dark:text-slate-300">{skillFixed}</pre>
+      </div>
+    </aside>
+  </div>
+{/if}
+
+<style>
+  .brain-flash {
+    animation: brain-flash 1.6s ease-out;
+  }
+  @keyframes brain-flash {
+    from {
+      box-shadow: 0 0 0 4px rgb(56 189 248 / 0.45);
+    }
+    to {
+      box-shadow: 0 0 0 0 rgb(56 189 248 / 0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .brain-flash {
+      animation: none;
+    }
+  }
+</style>
