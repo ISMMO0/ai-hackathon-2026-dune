@@ -184,26 +184,32 @@
 <section data-testid="project-items" data-project={projectId}>
   {#if tutorProject}
     <div
-      class="mb-8 flex flex-col gap-5 border-y border-primary/25 bg-primary/[0.04] px-1 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-5"
+      class="mb-8 flex flex-col gap-4 rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/30 sm:flex-row sm:items-center sm:justify-between sm:p-5"
       data-testid="tutor-room-entry"
     >
-      <div class="flex min-w-0 gap-4">
+      <div class="flex min-w-0 items-center gap-3">
         <div
-          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground"
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+          aria-hidden="true"
         >
           <GraduationCap class="h-5 w-5" />
         </div>
-        <div>
+        <div class="min-w-0">
           <h2 class="font-semibold">Your tutor is ready</h2>
-          <p class="mt-1 max-w-[58ch] text-sm leading-6 text-muted-foreground">
-            Learn through a guided conversation using this tutor profile and the lessons below.
+          <p class="mt-0.5 max-w-[58ch] text-sm leading-6 text-muted-foreground">
+            {hasTutorJournal
+              ? 'Pick up the conversation where you left off.'
+              : 'Chat with your tutor, try the exercises, and listen to the answers.'}
           </p>
         </div>
       </div>
-      <Button href={`/tutors/${projectId}/room`} class="min-h-11 shrink-0 gap-2">
+      <a
+        href={`/tutors/${projectId}/room`}
+        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-sky-600 px-5 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400"
+      >
         <Play class="h-4 w-4" />
         {hasTutorJournal ? 'Continue lesson' : 'Start lesson'}
-      </Button>
+      </a>
     </div>
   {/if}
 

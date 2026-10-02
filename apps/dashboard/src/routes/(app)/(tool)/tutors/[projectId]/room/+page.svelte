@@ -2,7 +2,6 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { page } from '$app/state';
   import ArrowLeft from '@lucide/svelte/icons/arrow-left';
-  import BookOpen from '@lucide/svelte/icons/book-open';
   import Check from '@lucide/svelte/icons/check';
   import ExternalLink from '@lucide/svelte/icons/external-link';
   import GraduationCap from '@lucide/svelte/icons/graduation-cap';
@@ -55,6 +54,10 @@
 
   const canPersist = $derived(project ? projectCan.write(project) : false);
   const learnerHasSpoken = $derived(messages.some((message) => message.role === 'learner'));
+
+  // Presentation only: the labels the room shows, read from the Project and its lessons.
+  const lessonTitle = (name: string) => name.replace(/^\d+\.\s*/, '').replace(/^Lesson\s+\d+:\s*/i, '');
+  const tutorSubtitle = $derived(project?.description?.split('\n')[1] ?? '');
 
   const messageId = () =>
     globalThis.crypto?.randomUUID?.() ?? `message-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -213,105 +216,137 @@
   <title>{project ? `${project.name} · Tutor Room` : 'Tutor Room'} · {data.instance.name}</title>
 </svelte:head>
 
-<div class="mx-auto w-full max-w-6xl pb-8">
+<div class="mx-auto w-full max-w-3xl pb-6">
   {#if loading}
-    <div class="flex min-h-[60vh] items-center justify-center" aria-live="polite">
-      <LoaderCircle class="h-7 w-7 animate-spin text-primary motion-reduce:animate-none" />
-      <span class="ml-3 text-sm text-muted-foreground">Opening Tutor Room…</span>
+    <div class="flex min-h-[60vh] flex-col items-center justify-center gap-3" aria-live="polite">
+      <LoaderCircle class="h-7 w-7 animate-spin text-sky-500 motion-reduce:animate-none" />
+      <span class="text-sm text-muted-foreground">Opening your Tutor Room…</span>
     </div>
   {:else if loadError || !project}
-    <div class="mx-auto max-w-xl py-16 text-center">
-      <GraduationCap class="mx-auto h-10 w-10 text-muted-foreground" />
-      <h1 class="mt-4 text-xl font-semibold">Tutor Room unavailable</h1>
+    <div class="mx-auto max-w-md py-16 text-center">
+      <div
+        class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-sky-50 text-sky-600 dark:bg-sky-950/60 dark:text-sky-300"
+      >
+        <GraduationCap class="h-7 w-7" />
+      </div>
+      <h1 class="mt-5 text-xl font-semibold">This Tutor Room can’t open</h1>
       <div class="mt-3"><FormError message={loadError} /></div>
-      <Button href={`/projects/${projectId}`} variant="outline" class="mt-6 gap-2">
+      <Button href={`/projects/${projectId}`} variant="outline" class="mt-6 min-h-11 gap-2">
         <ArrowLeft class="h-4 w-4" /> Back to Project
       </Button>
     </div>
   {:else}
-    <header class="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-      <div class="min-w-0">
-        <a
-          href={`/projects/${project.id}`}
-          class="mb-3 inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft class="h-4 w-4" /> Back to Project
-        </a>
-        <p class="text-sm font-medium text-primary">Tutor Room</p>
-        <h1 class="mt-1 truncate text-2xl font-semibold sm:text-3xl">{project.name}</h1>
-      </div>
-      <div class="flex min-w-44 flex-col gap-2">
-        <div class="flex items-center justify-between text-xs">
-          <span class="font-medium">Learning progress</span>
-          <span>{progress}%</span>
-        </div>
-        <div class="h-2 overflow-hidden rounded-full bg-muted" aria-label={`Learning progress ${progress}%`}>
-          <div class="h-full bg-primary transition-all duration-300" style:width={`${progress}%`}></div>
-        </div>
-      </div>
-    </header>
-
-    <div
-      class="mt-6 grid min-h-[620px] overflow-hidden rounded-md border bg-card lg:grid-cols-[280px_minmax(0,1fr)]"
+    <section
+      class="flex h-[calc(100dvh-11rem)] min-h-[520px] flex-col overflow-hidden rounded-2xl border border-sky-100 bg-white shadow-sm dark:border-sky-900/50 dark:bg-slate-950 sm:h-[calc(100dvh-8rem)]"
+      aria-label="Tutor Room"
     >
-      <aside class="border-b bg-muted/20 p-5 lg:border-b-0 lg:border-r">
-        <div class="flex items-center gap-2">
-          <BookOpen class="h-4 w-4 text-primary" />
-          <h2 class="font-semibold">Learning path</h2>
+      <!-- Header: who you are learning with, and a quiet progress line -->
+      <header class="border-b border-sky-100 px-3 pb-3 pt-3 dark:border-sky-900/50 sm:px-5">
+        <div class="flex items-center gap-3">
+          <a
+            href={`/projects/${project.id}`}
+            class="-ml-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-sky-50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:hover:bg-sky-950/60"
+            aria-label="Back to Project"
+            title="Back to Project"
+          >
+            <ArrowLeft class="h-5 w-5" />
+          </a>
+          <div
+            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+            aria-hidden="true"
+          >
+            <GraduationCap class="h-5 w-5" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <h1 class="truncate text-base font-semibold leading-6 sm:text-lg">{project.name}</h1>
+            <p class="truncate text-xs text-muted-foreground">{tutorSubtitle || 'Tutor Room'}</p>
+          </div>
+          <div class="hidden shrink-0 text-right sm:block" aria-hidden="true">
+            <p class="text-xs text-muted-foreground">Progress</p>
+            <p class="text-sm font-semibold text-sky-700 dark:text-sky-300">{progress}%</p>
+          </div>
         </div>
-        <ol class="mt-4 space-y-2">
-          {#each lessons as lesson, index (lesson.id)}
-            <li>
-              <button
-                type="button"
-                class="w-full rounded-md border bg-card p-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-                disabled={thinking}
-                onclick={() =>
-                  void sendMessage(
-                    `Let's begin lesson ${index + 1}: ${lesson.name.replace(/^\d+\.\s*/, '')}.`
-                  )}
-              >
-                <span class="text-xs font-medium text-primary">Lesson {index + 1}</span>
-                <span class="mt-1 block text-sm font-medium leading-5"
-                  >{lesson.name.replace(/^\d+\.\s*/, '')}</span
-                >
-              </button>
-            </li>
-          {/each}
-        </ol>
-
-        <div class="mt-6 border-t pt-4 text-xs leading-5 text-muted-foreground">
-          <p>H prepares each tutor response from this course.</p>
-          <p class="mt-2">Gradium reads responses aloud.</p>
-        </div>
-      </aside>
-
-      <section class="flex min-h-0 flex-col" aria-label="Tutor conversation">
         <div
-          class="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-7"
-          bind:this={messageList}
-          aria-live="polite"
-          aria-busy={thinking}
-          data-testid="tutor-messages"
+          class="mt-3 h-1.5 overflow-hidden rounded-full bg-sky-50 dark:bg-sky-950/60"
+          role="progressbar"
+          aria-label="Learning progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progress}
         >
-          {#each messages as message (message.id)}
-            <article class:ml-auto={message.role === 'learner'} class="max-w-[88%] sm:max-w-[76%]">
-              <p class="mb-1 text-xs font-medium text-muted-foreground">
-                {message.role === 'learner' ? 'You' : 'Tutor'}
-              </p>
+          <div
+            class="h-full rounded-full bg-sky-400 transition-[width] duration-500 motion-reduce:transition-none"
+            style:width={`${progress}%`}
+          ></div>
+        </div>
+
+        <!-- Lessons: one compact row of chips, scrolls sideways on a phone -->
+        {#if lessons.length}
+          <nav class="-mx-3 mt-3 sm:-mx-5" aria-label="Lessons">
+            <ol class="flex gap-2 overflow-x-auto px-3 pb-1 [scrollbar-width:none] sm:px-5">
+              {#each lessons as lesson, index (lesson.id)}
+                <li class="shrink-0">
+                  <button
+                    type="button"
+                    class="inline-flex min-h-11 max-w-[15rem] items-center gap-2 rounded-full border border-sky-100 bg-sky-50/60 py-1.5 pl-1.5 pr-4 text-left text-sm text-slate-700 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:pointer-events-none disabled:opacity-50 dark:border-sky-900/60 dark:bg-sky-950/40 dark:text-slate-200 dark:hover:bg-sky-950/70"
+                    disabled={thinking}
+                    title={`Start lesson ${index + 1}: ${lessonTitle(lesson.name)}`}
+                    onclick={() =>
+                      void sendMessage(
+                        `Let's begin lesson ${index + 1}: ${lesson.name.replace(/^\d+\.\s*/, '')}.`
+                      )}
+                  >
+                    <span
+                      class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-semibold text-sky-700 dark:bg-sky-900 dark:text-sky-200"
+                      >{index + 1}</span
+                    >
+                    <span class="truncate">{lessonTitle(lesson.name)}</span>
+                  </button>
+                </li>
+              {/each}
+            </ol>
+          </nav>
+        {/if}
+      </header>
+
+      <!-- Conversation -->
+      <div
+        class="min-h-0 flex-1 space-y-5 overflow-y-auto bg-gradient-to-b from-sky-50/40 to-white px-3 py-5 dark:from-sky-950/20 dark:to-slate-950 sm:px-6"
+        bind:this={messageList}
+        aria-live="polite"
+        aria-busy={thinking}
+        data-testid="tutor-messages"
+      >
+        {#each messages as message (message.id)}
+          {#if message.role === 'learner'}
+            <article class="ml-auto flex max-w-[85%] flex-col items-end sm:max-w-[75%]">
+              <span class="sr-only">You said:</span>
               <div
-                class={`rounded-md px-4 py-3 text-sm leading-6 ${
-                  message.role === 'learner' ? 'bg-foreground text-background' : 'border bg-muted/30'
-                }`}
+                class="whitespace-pre-wrap rounded-2xl rounded-br-md bg-sky-600 px-4 py-2.5 text-[15px] leading-6 text-white dark:bg-sky-500 dark:text-slate-950"
               >
                 {message.text}
               </div>
-              {#if message.role === 'tutor'}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  class="mt-1 min-h-11 gap-2 px-2 text-muted-foreground"
+            </article>
+          {:else}
+            <article class="flex max-w-[92%] gap-2.5 sm:max-w-[80%]">
+              <div
+                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+                aria-hidden="true"
+              >
+                <GraduationCap class="h-4 w-4" />
+              </div>
+              <div class="min-w-0">
+                <span class="sr-only">Tutor said:</span>
+                <div
+                  class="whitespace-pre-wrap rounded-2xl rounded-tl-md border border-sky-100 bg-white px-4 py-2.5 text-[15px] leading-6 text-slate-800 shadow-sm dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-100"
+                >
+                  {message.text}
+                </div>
+                <button
+                  type="button"
+                  class="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-xs font-medium text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-50 dark:text-sky-300 dark:hover:bg-sky-950/60"
                   disabled={speakingId !== null}
+                  aria-label={speakingId === message.id ? 'Preparing voice' : 'Listen to this message'}
                   onclick={() => void speak(message)}
                 >
                   {#if speakingId === message.id}
@@ -319,103 +354,130 @@
                   {:else}
                     <Volume2 class="h-4 w-4" /> Listen
                   {/if}
-                </Button>
-              {/if}
+                </button>
+              </div>
             </article>
-          {/each}
+          {/if}
+        {/each}
 
-          {#if thinking}
-            <div class="max-w-[88%] sm:max-w-[76%]">
-              <p class="mb-1 text-xs font-medium text-muted-foreground">Tutor</p>
-              <div class="flex items-center gap-3 rounded-md border bg-muted/30 px-4 py-3 text-sm">
-                <LoaderCircle class="h-4 w-4 animate-spin text-primary motion-reduce:animate-none" />
-                H is preparing the next step…
+        {#if thinking}
+          <div class="flex max-w-[92%] gap-2.5 sm:max-w-[80%]" role="status">
+            <div
+              class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+              aria-hidden="true"
+            >
+              <GraduationCap class="h-4 w-4" />
+            </div>
+            <div>
+              <div
+                class="inline-flex items-center gap-2.5 rounded-2xl rounded-tl-md border border-sky-100 bg-white px-4 py-3 text-sm text-muted-foreground shadow-sm dark:border-sky-900/50 dark:bg-slate-900"
+              >
+                <span class="flex gap-1" aria-hidden="true">
+                  <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-sky-400 motion-reduce:animate-none"
+                  ></span>
+                  <span
+                    class="h-1.5 w-1.5 animate-bounce rounded-full bg-sky-400 [animation-delay:150ms] motion-reduce:animate-none"
+                  ></span>
+                  <span
+                    class="h-1.5 w-1.5 animate-bounce rounded-full bg-sky-400 [animation-delay:300ms] motion-reduce:animate-none"
+                  ></span>
+                </span>
+                Your tutor is thinking…
               </div>
               {#if activeRun?.liveUrl}
                 <a
                   href={activeRun.liveUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="mt-2 inline-flex min-h-11 items-center gap-2 text-xs text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground underline-offset-4 hover:text-sky-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:hover:text-sky-300"
                 >
-                  Watch H work live <ExternalLink class="h-3.5 w-3.5" />
+                  Watch H research live <ExternalLink class="h-3.5 w-3.5" />
                 </a>
               {/if}
             </div>
-          {/if}
+          </div>
+        {/if}
+      </div>
+
+      <!-- Composer: always at the bottom of the room -->
+      <footer
+        class="border-t border-sky-100 bg-white px-3 pb-3 pt-3 dark:border-sky-900/50 dark:bg-slate-950 sm:px-5"
+      >
+        {#if !learnerHasSpoken && !thinking}
+          <div class="mb-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="inline-flex min-h-11 items-center rounded-full border border-sky-200 px-4 text-sm text-sky-800 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-950/60"
+              onclick={() => void sendMessage('Start with a simple explanation.')}>Explain it simply</button
+            >
+            <button
+              type="button"
+              class="inline-flex min-h-11 items-center rounded-full border border-sky-200 px-4 text-sm text-sky-800 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-800 dark:text-sky-200 dark:hover:bg-sky-950/60"
+              onclick={() => void sendMessage('Give me a quick exercise.')}>Give me an exercise</button
+            >
+          </div>
+        {/if}
+
+        <div
+          class="flex items-end gap-2 rounded-2xl border border-sky-200 bg-white p-1.5 pl-3 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-200 dark:border-sky-800 dark:bg-slate-900 dark:focus-within:ring-sky-900"
+        >
+          <Textarea
+            bind:value={draft}
+            rows={1}
+            class="max-h-36 min-h-11 [field-sizing:content] flex-1 resize-none border-0 bg-transparent px-0 py-2.5 text-[15px] shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            placeholder={thinking ? 'Your tutor is answering…' : 'Write your answer or a question'}
+            aria-label="Message your tutor"
+            disabled={thinking}
+            onkeydown={handleComposerKeydown}
+          />
+          <button
+            type="button"
+            class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-sky-200 disabled:text-white dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400 dark:disabled:bg-sky-900 dark:disabled:text-sky-700"
+            aria-label="Send message"
+            title="Send message"
+            disabled={thinking || !draft.trim()}
+            onclick={() => void sendMessage()}
+          >
+            {#if thinking}
+              <LoaderCircle class="h-5 w-5 animate-spin motion-reduce:animate-none" />
+            {:else}
+              <Send class="h-5 w-5" />
+            {/if}
+          </button>
         </div>
 
-        <div class="border-t bg-card p-4 sm:p-5">
-          {#if !learnerHasSpoken}
-            <div class="mb-3 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onclick={() => void sendMessage('Start with a simple explanation.')}>Explain it simply</Button
-              >
-              <Button
-                variant="outline"
-                size="sm"
-                onclick={() => void sendMessage('Give me a quick exercise.')}>Give me an exercise</Button
-              >
-            </div>
-          {/if}
+        <FormError message={sendError ?? voiceError} class="pt-2" />
 
-          <div class="flex items-end gap-2">
-            <Textarea
-              bind:value={draft}
-              rows={2}
-              class="min-h-12 resize-none"
-              placeholder="Ask your tutor or answer the exercise…"
-              aria-label="Message your tutor"
-              disabled={thinking}
-              onkeydown={handleComposerKeydown}
-            />
-            <Button
-              size="icon"
-              class="h-12 w-12 shrink-0"
-              aria-label="Send message"
-              title="Send message"
-              disabled={thinking || !draft.trim()}
-              onclick={() => void sendMessage()}
-            >
-              {#if thinking}
-                <LoaderCircle class="h-4 w-4 animate-spin motion-reduce:animate-none" />
-              {:else}
-                <Send class="h-4 w-4" />
-              {/if}
-            </Button>
-          </div>
-
-          <div
-            class="mt-2 flex min-h-5 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"
-          >
-            <span>Enter to send · Shift + Enter for a new line</span>
-            <span class="inline-flex items-center gap-1.5">
+        <div
+          class="mt-1.5 flex min-h-5 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground"
+        >
+          <span class="hidden sm:inline">Enter to send · Shift + Enter for a new line</span>
+          <span class="inline-flex items-center gap-3">
+            {#if lastRunUrl && !thinking}
+              <a
+                href={lastRunUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex min-h-8 items-center gap-1 underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+              >
+                Last H session <ExternalLink class="h-3 w-3" />
+              </a>
+            {/if}
+            <span class="inline-flex items-center gap-1.5" aria-live="polite">
               {#if saveState === 'saving'}
                 <LoaderCircle class="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" /> Saving…
               {:else if saveState === 'saved'}
-                <Check class="h-3.5 w-3.5 text-primary" /> Progress saved
+                <Check class="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" /> Saved
               {:else if saveState === 'failed'}
-                Progress could not be saved
+                <span class="text-destructive">Progress not saved</span>
               {:else if !canPersist}
-                View-only conversation
+                View only
               {/if}
             </span>
-          </div>
-          <FormError message={sendError ?? voiceError} class="pt-2" />
-          {#if lastRunUrl && !thinking}
-            <a
-              href={lastRunUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="mt-1 inline-flex min-h-11 items-center gap-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              View latest H session <ExternalLink class="h-3.5 w-3.5" />
-            </a>
-          {/if}
+            <span class="sm:hidden" aria-hidden="true">{progress}%</span>
+          </span>
         </div>
-      </section>
-    </div>
+      </footer>
+    </section>
   {/if}
 </div>
