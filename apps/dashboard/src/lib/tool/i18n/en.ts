@@ -7,6 +7,8 @@
  * here `items.` and the two `nav.` keys of its menu entry.
  */
 export const en = {
+  'nav.tutors': 'Tutor Studio',
+  'nav.blurb.tutors': 'Create personalized tutors with researched lessons and a voice.',
   'nav.items': 'Items',
   'nav.blurb.items': 'The items of this workspace: a name and a note each.',
   'items.title': 'Items',

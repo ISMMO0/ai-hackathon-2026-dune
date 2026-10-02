@@ -23,10 +23,13 @@
   import { appear, reveal } from '$lib/components/ui/reveal/index.js';
   import Plus from '@lucide/svelte/icons/plus';
   import Link from '@lucide/svelte/icons/link';
+  import GraduationCap from '@lucide/svelte/icons/graduation-cap';
+  import Play from '@lucide/svelte/icons/play';
   import { createPagedList } from '$lib/stores/pagedList.svelte';
   import { errorMessage } from '$lib/api';
   import { itemProjects, itemsToLink } from '$lib/tool/projects-client';
   import { noteExcerpt } from '$lib/tool/items';
+  import { isTutorProject, TUTOR_JOURNAL_MARKER } from '$lib/tool/tutors';
   import { projectCan } from '$lib/projects/can';
   import type { Project } from '$lib/projects/types';
   import { formatTimeAgo } from '$lib/format';
@@ -52,6 +55,8 @@
   });
 
   const items = $derived(list.items);
+  const tutorProject = $derived(isTutorProject(project));
+  const hasTutorJournal = $derived(items.some((item) => item.note.startsWith(TUTOR_JOURNAL_MARKER)));
   const itemCount = $derived(list.nextCursor ? undefined : rowCount('items.countOne', 'items.count'));
 
   // ── Add: the items page's own dialog, the new item linked as it is made ─
@@ -177,6 +182,37 @@
 {/snippet}
 
 <section data-testid="project-items" data-project={projectId}>
+  {#if tutorProject}
+    <div
+      class="mb-8 flex flex-col gap-4 rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/30 sm:flex-row sm:items-center sm:justify-between sm:p-5"
+      data-testid="tutor-room-entry"
+    >
+      <div class="flex min-w-0 items-center gap-3">
+        <div
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+          aria-hidden="true"
+        >
+          <GraduationCap class="h-5 w-5" />
+        </div>
+        <div class="min-w-0">
+          <h2 class="font-semibold">Your tutor is ready</h2>
+          <p class="mt-0.5 max-w-[58ch] text-sm leading-6 text-muted-foreground">
+            {hasTutorJournal
+              ? 'Pick up the conversation where you left off.'
+              : 'Chat with your tutor, try the exercises, and listen to the answers.'}
+          </p>
+        </div>
+      </div>
+      <a
+        href={`/studio/tutors/${projectId}`}
+        class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-sky-600 px-5 text-sm font-medium text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400"
+      >
+        <Play class="h-4 w-4" />
+        {hasTutorJournal ? 'Continue lesson' : 'Start lesson'}
+      </a>
+    </div>
+  {/if}
+
   <h2 class="font-display text-[19px] font-normal leading-tight tracking-[-0.01em]">
     {t('items.projectTitle')}
   </h2>
