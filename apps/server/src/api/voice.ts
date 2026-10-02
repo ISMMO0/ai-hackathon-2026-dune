@@ -1,5 +1,10 @@
 import type { OpenAPIHono } from '@hono/zod-openapi';
-import { voiceSpeakRoute, voiceTranscribeRoute } from '@app/contract/routes';
+import {
+  voiceDesignRoute,
+  voiceSaveRoute,
+  voiceSpeakRoute,
+  voiceTranscribeRoute
+} from '@app/contract/routes';
 import { requireAuth, requireNonGuest } from '@antasphere/chassis-server/middleware';
 import type { BodyCap } from '@antasphere/chassis-server';
 import type { Integrations } from '../integrations/index.js';
@@ -36,21 +41,60 @@ export function registerVoiceRoutes(api: OpenAPIHono, integrations: Integrations
   api.use('/voice/*', requireNonGuest());
 
   api.openapi(voiceSpeakRoute, async (c) => {
-    const { text } = c.req.valid('json');
+    const { text, voiceId } = c.req.valid('json');
     const gradium = integrations.gradium;
     if (!gradium) return notConfigured(c, 'gradium');
     let wav: Buffer;
     try {
-      wav = await gradium.speak(text);
+      wav = await gradium.speak(text, voiceId);
     } catch (err) {
       return providerFailed(c, err);
     }
     c.set('audit', {
       action: 'voice.speak',
       resourceType: 'voice',
-      metadata: { characters: text.length, bytes: wav.length }
+      metadata: { characters: text.length, bytes: wav.length, ...(voiceId ? { customVoice: true } : {}) }
     });
     return c.json({ audio: wav.toString('base64'), contentType: 'audio/wav' as const }, 200);
+  });
+
+  api.openapi(voiceDesignRoute, async (c) => {
+    const { prompt, language, previewText } = c.req.valid('json');
+    const gradium = integrations.gradium;
+    if (!gradium) return notConfigured(c, 'gradium');
+    try {
+      const candidateId = await gradium.designVoice(prompt, language);
+      const wav = await gradium.speak(previewText, candidateId);
+      c.set('audit', {
+        action: 'voice.design',
+        resourceType: 'voice',
+        metadata: {
+          promptCharacters: prompt.length,
+          previewCharacters: previewText.length,
+          bytes: wav.length
+        }
+      });
+      return c.json({ candidateId, audio: wav.toString('base64'), contentType: 'audio/wav' as const }, 200);
+    } catch (err) {
+      return providerFailed(c, err);
+    }
+  });
+
+  api.openapi(voiceSaveRoute, async (c) => {
+    const { candidateId, name, description } = c.req.valid('json');
+    const gradium = integrations.gradium;
+    if (!gradium) return notConfigured(c, 'gradium');
+    try {
+      const voiceId = await gradium.saveVoice(candidateId, name, description);
+      c.set('audit', {
+        action: 'voice.save',
+        resourceType: 'voice',
+        metadata: { named: true }
+      });
+      return c.json({ voiceId }, 200);
+    } catch (err) {
+      return providerFailed(c, err);
+    }
   });
 
   api.openapi(voiceTranscribeRoute, async (c) => {

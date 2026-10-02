@@ -1,4 +1,11 @@
-import { TUTOR_JOURNAL_MARKER } from './tutors';
+import {
+  TUTOR_JOURNAL_MARKER,
+  TUTOR_NAME_MARKER,
+  TUTOR_PROJECT_MARKER,
+  TUTOR_VOICE_MARKER,
+  TUTOR_VOICE_STYLE_MARKER,
+  tutorIdentity
+} from './tutors';
 
 /** What the studio shows of one tutor, read from its Project and lesson Items. */
 export interface TutorLessonView {
@@ -24,12 +31,23 @@ export function lessonTitle(name: string): string {
 
 /** The Project description Tutor Studio writes: marker, profile, style, approach. */
 export function readTutorDescription(description: string | null | undefined) {
-  const lines = (description ?? '').split('\n').map((line) => line.trim());
-  const details = [lines[1], lines[2]]
+  const lines = (description ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line &&
+        line !== TUTOR_PROJECT_MARKER &&
+        !line.startsWith(TUTOR_NAME_MARKER) &&
+        !line.startsWith(TUTOR_VOICE_MARKER) &&
+        !line.startsWith(TUTOR_VOICE_STYLE_MARKER)
+    );
+  const details = lines
+    .slice(0, -1)
     .filter(Boolean)
     .flatMap((line) => line.split('·').map((part) => part.trim()))
     .filter(Boolean);
-  return { details, approach: lines.slice(3).join(' ').trim() };
+  return { details, approach: lines.at(-1) ?? '' };
 }
 
 /** A lesson note: "Objective\n…\n\nActivity\n…\n\nResearch sources:\n- …". */
@@ -63,7 +81,13 @@ export function buildTutorView(
       activity: note.activity
     };
   });
-  return { name: project.name, details, approach, lessons, sources: [...sources] };
+  return {
+    name: tutorIdentity(project.description).tutorName ?? project.name,
+    details,
+    approach,
+    lessons,
+    sources: [...sources]
+  };
 }
 
 /** The first URL in a source line, if it has one. */

@@ -21,6 +21,7 @@
     isTutorProject,
     parseTutorJournal,
     serializeTutorJournal,
+    tutorIdentity,
     tutorWelcome,
     type TutorChatMessage
   } from '$lib/tool/tutors';
@@ -94,6 +95,10 @@
     skillMarkdown.includes('## Learner state')
       ? `## Learner state${skillMarkdown.split('## Learner state')[1]}`
       : ''
+  );
+  const voiceId = $derived(project ? tutorIdentity(project.description).voiceId : null);
+  const displayName = $derived(
+    project ? (tutorIdentity(project.description).tutorName ?? project.name) : 'Tutor Room'
   );
 
   const messageId = () =>
@@ -320,7 +325,7 @@
     speakingId = message.id;
     voiceError = null;
     try {
-      const { audio } = await api.speak(message.text);
+      const { audio } = await api.speak(message.text, { voiceId: voiceId ?? undefined });
       stopPlayback();
       const context = new AudioContext();
       const buffer = await context.decodeAudioData(fromBase64(audio).slice().buffer as ArrayBuffer);
@@ -344,7 +349,7 @@
 </script>
 
 <svelte:head>
-  <title>{project ? project.name : 'Tutor Room'} · Tutor Studio</title>
+  <title>{displayName} · Tutor Studio</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-2xl">
@@ -378,7 +383,7 @@
         >
           <ArrowLeft class="h-5 w-5" />
         </a>
-        <h1 class="min-w-0 flex-1 truncate text-lg font-semibold">{project.name}</h1>
+        <h1 class="min-w-0 flex-1 truncate text-lg font-semibold">{displayName}</h1>
         {#if lastRunUrl && !thinking}
           <a
             href={lastRunUrl}

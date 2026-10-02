@@ -1,11 +1,77 @@
-# Hackathon Starter
+# DUNE
 
-Hackathon Starter is a working tool you build on: a dashboard, a command-line client (`starter`) and an MCP
-endpoint an agent connects to, over one API. It comes wired to two services:
+**DUNE is an AI tutor studio that turns a short conversation about a learner into a researched, personalized
+tutor with its own curriculum, teaching style, voice and living learning state.** It was built for the
+Malt × Antasphere AI Hackathon.
 
-- **Gradium**, the voice: it speaks a text as a wav file, and it turns a recording back into text.
-- **H**, an agent in a cloud browser: you say what to do on the web in plain words, it does it in a real
-  browser you can watch live, and it answers in plain text.
+Instead of giving every child the same generic chatbot, DUNE discovers how they learn, asks H to research a
+safe micro-curriculum, creates a portable tutor brain, and uses Gradium to give the tutor a consistent voice.
+The learner can then work through lessons in a Tutor Room where the tutor explains, corrects, asks the next
+question and remembers progress.
+
+## Demo videos
+
+- [DUNE overview — 30 seconds](docs/demo/dune-overview.mp4)
+- [Complete tutor workflow — 3 minutes 33 seconds](docs/demo/dune-tutor-workflow.mp4)
+
+Both videos are committed as browser-friendly MP4 files. Open either link on GitHub to play or download it.
+
+## The experience
+
+1. **Discover the learner.** DUNE asks six short, child-friendly questions about age, subject, interests,
+   preferred learning style and confidence. Answers can be typed or dictated through Gradium speech-to-text.
+2. **Create the tutor identity.** The learner chooses an editable tutor name and a voice personality. Gradium
+   Voice Design generates a real preview and converts the selected candidate into a reusable voice.
+3. **Research the course.** H operates a cloud browser to find reliable, age-appropriate teaching material
+   and returns a three-lesson starter curriculum with sources.
+4. **Build the tutor brain.** The curriculum becomes a portable `SKILL.md` with teaching rules, modules,
+   research notes and a living learner state.
+5. **Learn together.** The Tutor Room combines the tutor brain, lessons and conversation history. The tutor
+   explains answers, corrects mistakes kindly, asks one useful next question and reads responses aloud in its
+   saved Gradium voice.
+6. **Remember progress.** Conversations and learning progress are stored with the tutor Project so a learner
+   can leave and continue later.
+
+## What each service does
+
+- **H Company** is the research and browser-action layer. It searches the web, prepares lesson material and
+  provides a live session link so judges can watch the agent work.
+- **Gradium** is the voice layer. It transcribes spoken onboarding answers, designs and previews unique tutor
+  voices, and turns Tutor Room responses into speech.
+- **Antasphere** provides the product foundation: authentication, workspaces, Projects, Items, files, API
+  keys, audit logs, the CLI and the MCP endpoint.
+
+## Product model
+
+- A **Project** is one persistent personalized tutor.
+- **Items** hold lesson modules, research, the generated skill and the learning journal.
+- The tutor's Project metadata stores its name, voice style and permanent Gradium `voiceId`.
+- The generated `SKILL.md` makes the tutor portable: another compatible agent can adopt the same teaching
+  behavior and course context.
+
+## Main routes
+
+- `/studio` — learner discovery and tutor creation
+- `/studio/tutors` — saved tutors
+- `/studio/tutors/:projectId` — curriculum, sources and portable skill
+- `/studio/tutors/:projectId/room` — interactive Tutor Room
+
+## Run DUNE locally
+
+Create `.env` at the repository root with `POSTGRES_PASSWORD`, `GRADIUM_API_KEY` and `HAI_API_KEY`, then run:
+
+```bash
+docker compose up -d --build --wait
+```
+
+Open [http://localhost:3000/studio](http://localhost:3000/studio). Never commit `.env` or API keys.
+
+---
+
+## Platform and developer guide
+
+DUNE builds on the Antasphere hackathon starter: a dashboard, a command-line client (`starter`) and an MCP
+endpoint over one API. The sections below document that foundation and its development workflows.
 
 ## With your agent: the hackathon plugin
 

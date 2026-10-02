@@ -11,6 +11,11 @@ import type {
   RunCreated,
   RunsList,
   Scope,
+  SavedVoice,
+  VoiceCandidate,
+  VoiceDesignRequest,
+  VoiceSaveRequest,
+  VoiceSpeakRequest,
   VoiceSpeech,
   VoiceTranscribeRequest,
   VoiceTranscript
@@ -98,8 +103,19 @@ export class PlatformClient extends ChassisClient<Scope> {
   // ── Voice ─────────────────────────────────────────────────────────────────
 
   /** Speak a text: the wav, base64 encoded. */
-  speak(text: string): Promise<VoiceSpeech> {
-    return this.request('POST', '/voice/speak', { text });
+  speak(text: string, options: { voiceId?: string } = {}): Promise<VoiceSpeech> {
+    const req: VoiceSpeakRequest = { text, ...options };
+    return this.request('POST', '/voice/speak', req);
+  }
+
+  /** Generate one temporary voice candidate and return its audition audio. */
+  designVoice(req: VoiceDesignRequest): Promise<VoiceCandidate> {
+    return this.request('POST', '/voice/design', req);
+  }
+
+  /** Convert a candidate into a permanent custom voice. */
+  saveVoice(req: VoiceSaveRequest): Promise<SavedVoice> {
+    return this.request('POST', '/voice/save', req);
   }
 
   /** Transcribe a wav (base64, at most 5 MiB decoded). */

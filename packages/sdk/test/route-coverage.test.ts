@@ -100,6 +100,10 @@ const INVOKERS: Record<string, (c: PlatformClient) => Promise<unknown>> = {
   'DELETE /items/{id}/projects/{projectId}': (c) => c.unlinkItemProject(SAMPLE_ID, SAMPLE_CHILD_ID),
   'GET /integrations': (c) => c.integrations({ check: true }),
   'POST /voice/speak': (c) => c.speak('Bonjour'),
+  'POST /voice/design': (c) =>
+    c.designVoice({ prompt: 'A warm tutor voice', language: 'en', previewText: 'Hello there' }),
+  'POST /voice/save': (c) =>
+    c.saveVoice({ candidateId: 'vox_emb_test', name: 'Nova', description: 'Tutor voice' }),
   'POST /voice/transcribe': (c) => c.transcribe({ audio: 'UklGRg==', contentType: 'audio/wav' }),
   'POST /runs': (c) => c.createRun({ instruction: 'Read the heading' }),
   'GET /runs': (c) => c.listRuns(),

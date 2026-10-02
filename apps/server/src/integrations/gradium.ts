@@ -14,6 +14,9 @@ export const GRADIUM_API_BASE = 'https://api.gradium.ai';
 export const GRADIUM_TTS_URL = `${GRADIUM_API_BASE}/api/post/speech/tts`;
 export const GRADIUM_ASR_URL = `${GRADIUM_API_BASE}/api/post/speech/asr`;
 export const GRADIUM_CREDITS_URL = `${GRADIUM_API_BASE}/api/usages/credits`;
+export const GRADIUM_VOICE_DESIGN_URL = `${GRADIUM_API_BASE}/api/voice-generator/generate`;
+export const GRADIUM_VOICE_CANDIDATES_URL = `${GRADIUM_API_BASE}/api/voice-generator/embeddings`;
+export const GRADIUM_VOICE_SAVE_URL = `${GRADIUM_API_BASE}/api/voices/from-embedding`;
 /** One of Gradium's stock voices; pick another in their console and paste its id here. */
 export const GRADIUM_VOICE_ID = 'YTpq7expH9539ERJ';
 
@@ -26,7 +29,11 @@ export interface GradiumCredits {
 
 export interface GradiumClient {
   /** The text spoken, as the bytes of a wav file. */
-  speak(text: string): Promise<Buffer>;
+  speak(text: string, voiceId?: string): Promise<Buffer>;
+  /** Create one temporary voice and wait until it can be auditioned. */
+  designVoice(prompt: string, language: string): Promise<string>;
+  /** Turn a temporary candidate into a reusable custom voice. */
+  saveVoice(candidateId: string, name: string, description?: string): Promise<string>;
   /** The transcript of a wav file. Without a language, Gradium detects it (`any`). */
   transcribe(wav: Uint8Array, language?: TranscribeLanguage): Promise<string>;
   /** The account's credits: the cheap live check. */
@@ -91,17 +98,75 @@ export function createGradium(options: GradiumOptions): GradiumClient {
   }
 
   return {
-    async speak(text) {
+    async speak(text, voiceId) {
       const res = await call(
         GRADIUM_TTS_URL,
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ text, voice_id: GRADIUM_VOICE_ID, output_format: 'wav', only_audio: true })
+          body: JSON.stringify({
+            text,
+            voice_id: voiceId ?? GRADIUM_VOICE_ID,
+            output_format: 'wav',
+            only_audio: true
+          })
         },
         'text to speech'
       );
       return Buffer.from(await res.arrayBuffer());
+    },
+
+    async designVoice(prompt, language) {
+      const created = await call(
+        GRADIUM_VOICE_DESIGN_URL,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ prompt, language, n_samples: 1 })
+        },
+        'voice design'
+      );
+      const body = (await created.json()) as { embeddings?: Array<{ embedding_id?: unknown }> };
+      const candidateId = body.embeddings?.[0]?.embedding_id;
+      if (typeof candidateId !== 'string') {
+        throw new IntegrationError('gradium', 'Gradium created no voice candidate');
+      }
+
+      const deadline = Date.now() + 60_000;
+      while (Date.now() < deadline) {
+        const status = await call(
+          `${GRADIUM_VOICE_CANDIDATES_URL}?embedding_id=${encodeURIComponent(candidateId)}`,
+          { method: 'GET' },
+          'voice design status'
+        );
+        const statusBody = (await status.json()) as { embeddings?: Array<{ ready?: unknown }> };
+        const candidate = statusBody.embeddings?.[0];
+        if (!candidate) throw new IntegrationError('gradium', 'Gradium could not find the voice candidate');
+        if (candidate.ready === true) return candidateId;
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+      }
+      throw new IntegrationError('gradium', 'Gradium voice design did not finish within 60 seconds');
+    },
+
+    async saveVoice(candidateId, name, description) {
+      const res = await call(
+        GRADIUM_VOICE_SAVE_URL,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            voxium_embedding_id: candidateId,
+            name,
+            ...(description ? { description } : {})
+          })
+        },
+        'save designed voice'
+      );
+      const body = (await res.json()) as { uid?: unknown };
+      if (typeof body.uid !== 'string') {
+        throw new IntegrationError('gradium', 'Gradium saved the voice without returning its id');
+      }
+      return body.uid;
     },
 
     async transcribe(wav, language) {

@@ -30,9 +30,28 @@ export function base64DecodedLength(value: string): number {
 
 export const voiceSpeakSchema = z.object({
   /** What to say: free text, kept as typed. */
-  text: plainText(1, VOICE_TEXT_MAX).refine((t) => t.trim().length > 0, { error: 'text is empty' })
+  text: plainText(1, VOICE_TEXT_MAX).refine((t) => t.trim().length > 0, { error: 'text is empty' }),
+  /** A saved or temporary Gradium voice. Without one, the tool's stock voice is used. */
+  voiceId: z.string().trim().min(1).max(120).optional()
 });
 export type VoiceSpeakRequest = z.infer<typeof voiceSpeakSchema>;
+
+export const voiceDesignSchema = z.object({
+  prompt: plainText(1, 500).refine((t) => t.trim().length > 0, { error: 'prompt is empty' }),
+  language: z.enum(['en', 'fr', 'de', 'es', 'pt']).default('en'),
+  previewText: plainText(1, 100).refine((t) => t.trim().length > 0, { error: 'previewText is empty' })
+});
+export type VoiceDesignRequest = z.infer<typeof voiceDesignSchema>;
+
+export const voiceSaveSchema = z.object({
+  candidateId: z.string().trim().min(1).max(120),
+  name: plainText(1, 120),
+  description: plainText(1, 500).optional()
+});
+export type VoiceSaveRequest = z.infer<typeof voiceSaveSchema>;
+
+export const savedVoiceSchema = z.object({ voiceId: z.string() });
+export type SavedVoice = z.infer<typeof savedVoiceSchema>;
 
 export const voiceSpeechSchema = z.object({
   /** The wav file, base64 encoded. */
@@ -40,6 +59,9 @@ export const voiceSpeechSchema = z.object({
   contentType: z.literal('audio/wav')
 });
 export type VoiceSpeech = z.infer<typeof voiceSpeechSchema>;
+
+export const voiceCandidateSchema = voiceSpeechSchema.extend({ candidateId: z.string() });
+export type VoiceCandidate = z.infer<typeof voiceCandidateSchema>;
 
 export const voiceTranscribeSchema = z.object({
   /** A wav file (16-bit PCM is what the dashboard records), base64 encoded, at most 5 MiB decoded. */

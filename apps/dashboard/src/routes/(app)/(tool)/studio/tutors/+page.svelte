@@ -6,7 +6,7 @@
   import { errorMessage } from '$lib/api';
   import { projects } from '$lib/projects/client';
   import type { Project } from '$lib/projects/types';
-  import { isTutorProject } from '$lib/tool/tutors';
+  import { isTutorProject, tutorIdentity } from '$lib/tool/tutors';
   import { readTutorDescription } from '$lib/tool/tutor-view';
 
   let tutors = $state<Project[]>([]);
@@ -51,6 +51,7 @@
     <ul class="mt-8 grid grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
       {#each tutors as tutor, index (tutor.id)}
         {@const details = readTutorDescription(tutor.description).details}
+        {@const displayName = tutorIdentity(tutor.description).tutorName ?? tutor.name}
         <li
           class="relative flex flex-col rounded-3xl bg-white p-5 shadow-sm shadow-sky-100 transition-shadow focus-within:ring-2 focus-within:ring-sky-400 hover:shadow-md hover:shadow-sky-100"
         >
@@ -59,14 +60,14 @@
               class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-xl font-bold text-white {TINTS[
                 index % TINTS.length
               ]}"
-              aria-hidden="true">{tutor.name.trim()[0]?.toUpperCase()}</span
+              aria-hidden="true">{displayName.trim()[0]?.toUpperCase()}</span
             >
             <div class="min-w-0">
               <!-- The whole card opens the tutor's page -->
               <a
                 href={`/studio/tutors/${tutor.id}`}
                 class="block truncate text-lg font-bold text-slate-900 outline-none after:absolute after:inset-0 after:rounded-3xl"
-                >{tutor.name}</a
+                >{displayName}</a
               >
               <p class="truncate text-sm text-slate-500">{details.slice(0, 3).join(' · ')}</p>
             </div>

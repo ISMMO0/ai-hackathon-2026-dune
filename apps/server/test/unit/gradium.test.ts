@@ -3,7 +3,10 @@ import {
   GRADIUM_ASR_URL,
   GRADIUM_CREDITS_URL,
   GRADIUM_TTS_URL,
+  GRADIUM_VOICE_CANDIDATES_URL,
+  GRADIUM_VOICE_DESIGN_URL,
   GRADIUM_VOICE_ID,
+  GRADIUM_VOICE_SAVE_URL,
   createGradium,
   joinTranscript
 } from '../../src/integrations/gradium.js';
@@ -85,6 +88,38 @@ describe('createGradium', () => {
       only_audio: true
     });
     expect(GRADIUM_VOICE_ID).toBe('YTpq7expH9539ERJ');
+  });
+
+  it('speak accepts a designed voice id', async () => {
+    const { fetch, calls } = fakeFetch(() => new Response(new Uint8Array([1]), { status: 200 }));
+    await createGradium({ apiKey: KEY, fetch }).speak('Hello', 'vox_emb_nova');
+    expect(JSON.parse(String(calls[0]!.body)).voice_id).toBe('vox_emb_nova');
+  });
+
+  it('designs one candidate, waits for readiness, and saves it as a reusable voice', async () => {
+    const { fetch, calls } = fakeFetch((call) => {
+      if (call.url === GRADIUM_VOICE_DESIGN_URL) {
+        return Response.json({ embeddings: [{ embedding_id: 'vox_emb_nova', ready: false }] });
+      }
+      if (call.url.startsWith(GRADIUM_VOICE_CANDIDATES_URL)) {
+        return Response.json({ embeddings: [{ embedding_id: 'vox_emb_nova', ready: true }] });
+      }
+      if (call.url === GRADIUM_VOICE_SAVE_URL) return Response.json({ uid: 'voice_nova' });
+      return new Response('not found', { status: 404 });
+    });
+    const gradium = createGradium({ apiKey: KEY, fetch });
+    expect(await gradium.designVoice('A warm tutor', 'en')).toBe('vox_emb_nova');
+    expect(await gradium.saveVoice('vox_emb_nova', 'Nova', 'Tutor voice')).toBe('voice_nova');
+    expect(JSON.parse(String(calls[0]!.body))).toEqual({
+      prompt: 'A warm tutor',
+      language: 'en',
+      n_samples: 1
+    });
+    expect(JSON.parse(String(calls.at(-1)!.body))).toEqual({
+      voxium_embedding_id: 'vox_emb_nova',
+      name: 'Nova',
+      description: 'Tutor voice'
+    });
   });
 
   it('transcribe: POSTs the wav bytes as audio/wav, the language in json_config, and joins the ndjson', async () => {

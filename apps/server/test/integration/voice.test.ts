@@ -35,13 +35,25 @@ const fake = {
   fail: null as IntegrationError | null,
   transcript: 'Bonjour. Ceci est un test',
   spoken: [] as string[],
+  spokenVoiceIds: [] as Array<string | undefined>,
+  designed: [] as Array<{ prompt: string; language: string }>,
+  saved: [] as Array<{ candidateId: string; name: string; description?: string }>,
   heard: [] as Array<{ bytes: number[]; language: string | undefined }>
 };
 const gradium: GradiumClient = {
-  speak: async (text) => {
+  speak: async (text, voiceId) => {
     if (fake.fail) throw fake.fail;
     fake.spoken.push(text);
+    fake.spokenVoiceIds.push(voiceId);
     return WAV;
+  },
+  designVoice: async (prompt, language) => {
+    fake.designed.push({ prompt, language });
+    return 'vox_emb_test';
+  },
+  saveVoice: async (candidateId, name, description) => {
+    fake.saved.push({ candidateId, name, ...(description ? { description } : {}) });
+    return 'voice_test';
   },
   transcribe: async (wav, language) => {
     if (fake.fail) throw fake.fail;
@@ -131,6 +143,18 @@ describe('POST /voice/speak', () => {
     expect(JSON.stringify(rows)).not.toContain('Bonjour');
   });
 
+  it('passes a selected tutor voice to Gradium', async () => {
+    const res = await send(
+      app,
+      'POST',
+      '/voice/speak',
+      { cookie: ownerCookie },
+      { text: 'Hello', voiceId: 'voice_nova' }
+    );
+    expect(res.status).toBe(200);
+    expect(fake.spokenVoiceIds.at(-1)).toBe('voice_nova');
+  });
+
   it('refuses an empty text and one over 2000 characters with a 400, and never calls Gradium', async () => {
     const before = fake.spoken.length;
     for (const text of ['', '   ', 'x'.repeat(2001)]) {
@@ -162,6 +186,41 @@ describe('POST /voice/speak', () => {
     expect(body.error.details).toEqual({ integration: 'gradium', envKey: 'GRADIUM_API_KEY' });
     expect(body.error.message).toContain('GRADIUM_API_KEY');
     expect(body.error.message).toContain('.env');
+  });
+});
+
+describe('POST /voice/design and /voice/save', () => {
+  it('auditions a designed candidate and converts the chosen voice', async () => {
+    const designed = await send(
+      app,
+      'POST',
+      '/voice/design',
+      { cookie: ownerCookie },
+      { prompt: 'A warm tutor', language: 'en', previewText: 'Hello learner' }
+    );
+    expect(designed.status).toBe(200);
+    expect(await readJson(designed)).toEqual({
+      candidateId: 'vox_emb_test',
+      audio: WAV.toString('base64'),
+      contentType: 'audio/wav'
+    });
+    expect(fake.designed.at(-1)).toEqual({ prompt: 'A warm tutor', language: 'en' });
+    expect(fake.spokenVoiceIds.at(-1)).toBe('vox_emb_test');
+
+    const saved = await send(
+      app,
+      'POST',
+      '/voice/save',
+      { cookie: ownerCookie },
+      { candidateId: 'vox_emb_test', name: 'Nova', description: 'Tutor voice' }
+    );
+    expect(saved.status).toBe(200);
+    expect(await readJson(saved)).toEqual({ voiceId: 'voice_test' });
+    expect(fake.saved.at(-1)).toEqual({
+      candidateId: 'vox_emb_test',
+      name: 'Nova',
+      description: 'Tutor voice'
+    });
   });
 });
 

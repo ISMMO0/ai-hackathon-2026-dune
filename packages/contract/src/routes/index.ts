@@ -27,6 +27,10 @@ import {
 } from '../schemas/items.js';
 import { integrationsQuerySchema, integrationsSchema } from '../schemas/integrations.js';
 import {
+  savedVoiceSchema,
+  voiceCandidateSchema,
+  voiceDesignSchema,
+  voiceSaveSchema,
   voiceSpeakSchema,
   voiceSpeechSchema,
   voiceTranscribeSchema,
@@ -250,6 +254,36 @@ export const voiceSpeakRoute = createRoute({
   request: { body: jsonRequestBody(voiceSpeakSchema, 'The text to speak (1 to 2000 characters)') },
   responses: {
     200: jsonBody(voiceSpeechSchema, 'The audio'),
+    400: errorResponses[400],
+    401: errorResponses[401],
+    403: errorResponses[403],
+    ...integrationErrorResponses
+  }
+});
+
+export const voiceDesignRoute = createRoute({
+  method: 'post',
+  path: '/voice/design',
+  tags: ['voice'],
+  summary: 'Design and audition one temporary Gradium voice candidate',
+  request: { body: jsonRequestBody(voiceDesignSchema, 'The voice description and preview line') },
+  responses: {
+    200: jsonBody(voiceCandidateSchema, 'The temporary candidate and its preview audio'),
+    400: errorResponses[400],
+    401: errorResponses[401],
+    403: errorResponses[403],
+    ...integrationErrorResponses
+  }
+});
+
+export const voiceSaveRoute = createRoute({
+  method: 'post',
+  path: '/voice/save',
+  tags: ['voice'],
+  summary: 'Convert a temporary Gradium voice candidate into a reusable voice',
+  request: { body: jsonRequestBody(voiceSaveSchema, 'The candidate and tutor identity') },
+  responses: {
+    200: jsonBody(savedVoiceSchema, 'The permanent Gradium voice id'),
     400: errorResponses[400],
     401: errorResponses[401],
     403: errorResponses[403],

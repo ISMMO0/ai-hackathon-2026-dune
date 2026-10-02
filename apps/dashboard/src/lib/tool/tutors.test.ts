@@ -9,6 +9,7 @@ import {
   serializeTutorJournal,
   tutorWelcome,
   tutorProjectDescription,
+  tutorIdentity,
   tutorProjectName,
   type TutorProfile
 } from './tutors';
@@ -16,7 +17,9 @@ import {
 const profile: TutorProfile = {
   learnerName: 'Adam',
   age: '12',
+  gender: 'Prefer to skip',
   subject: 'probability',
+  interests: 'football and space',
   level: 'Complete beginner',
   learningStyle: 'Practical examples',
   tone: 'Warm and encouraging',
@@ -29,6 +32,7 @@ describe('Tutor Studio helpers', () => {
     expect(instruction).toContain('three-lesson micro-course');
     expect(instruction).toContain('Return ONLY valid JSON');
     expect(instruction).toContain('probability');
+    expect(instruction).toContain('football and space');
     expect(instruction.length).toBeLessThanOrEqual(2000);
   });
 
@@ -48,9 +52,27 @@ describe('Tutor Studio helpers', () => {
       profile
     );
     const description = tutorProjectDescription(profile, research);
-    expect(tutorProjectName(profile)).toBe("Adam's probability Tutor");
+    expect(tutorProjectName(profile)).toBe('My probability Tutor');
     expect(isTutorProject({ description })).toBe(true);
     expect(isTutorProject({ description: 'Another project' })).toBe(false);
+  });
+
+  it('stores a custom tutor name and Gradium voice in the Project', () => {
+    const research = parseTutorResearch(
+      '{"lessons":[{"title":"One","objective":"Learn.","activity":"Try."}]}',
+      profile
+    );
+    const description = tutorProjectDescription(profile, research, {
+      tutorName: 'Nova',
+      voiceId: 'voice_nova',
+      voiceStyle: 'Warm guide'
+    });
+    expect(tutorProjectName(profile, 'Nova')).toBe('Nova · probability');
+    expect(tutorIdentity(description)).toEqual({
+      tutorName: 'Nova',
+      voiceId: 'voice_nova',
+      voiceStyle: 'Warm guide'
+    });
   });
 
   it('builds a bounded, lesson-aware tutor turn for H', () => {
@@ -115,5 +137,17 @@ describe('Tutor Studio helpers', () => {
         })
       )
     ).toContain('Hi Adam!');
+    expect(
+      tutorWelcome(
+        'My probability Tutor',
+        tutorProjectDescription(profile, {
+          tutorName: 'Chance',
+          welcome: 'Hello',
+          approach: 'Practical',
+          lessons: [],
+          sources: []
+        })
+      )
+    ).toContain('Hi!');
   });
 });

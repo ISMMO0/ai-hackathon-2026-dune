@@ -101,6 +101,8 @@ describe('GET /integrations', () => {
     let creditsCalls = 0;
     const gradium: GradiumClient = {
       speak: unused,
+      designVoice: unused,
+      saveVoice: unused,
       transcribe: unused,
       credits: async () => {
         creditsCalls++;
