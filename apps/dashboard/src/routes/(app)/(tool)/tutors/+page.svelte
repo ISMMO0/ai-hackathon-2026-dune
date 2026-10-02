@@ -1,21 +1,13 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { goto } from '$app/navigation';
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
-  import BookOpen from '@lucide/svelte/icons/book-open';
-  import Check from '@lucide/svelte/icons/check';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import ExternalLink from '@lucide/svelte/icons/external-link';
   import GraduationCap from '@lucide/svelte/icons/graduation-cap';
-  import Library from '@lucide/svelte/icons/library';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+  import Plus from '@lucide/svelte/icons/plus';
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
-  import Send from '@lucide/svelte/icons/send';
-  import Sparkles from '@lucide/svelte/icons/sparkles';
   import Volume2 from '@lucide/svelte/icons/volume-2';
-  import FormError from '$lib/components/shared/FormError.svelte';
-  import { Badge } from '$lib/components/ui/badge/index.js';
-  import { Button } from '$lib/components/ui/button/index.js';
-  import { Input } from '$lib/components/ui/input/index.js';
   import { api, errorMessage } from '$lib/api';
   import { projects } from '$lib/projects/client';
   import type { Project } from '$lib/projects/types';
@@ -67,8 +59,6 @@
 
   const isGuest = $derived(data.me.origin === 'guest');
   const question = $derived(TUTOR_QUESTIONS[questionIndex]);
-  const progress = $derived(Math.round((questionIndex / TUTOR_QUESTIONS.length) * 100));
-  const answeredQuestions = $derived(TUTOR_QUESTIONS.slice(0, questionIndex));
 
   async function loadTutors() {
     tutorsLoading = true;
@@ -203,343 +193,249 @@
   <title>Tutor Studio · {data.instance.name}</title>
 </svelte:head>
 
-<div class="mx-auto w-full max-w-6xl pb-12">
-  <header class="flex flex-col gap-5 border-b pb-6 pt-2 sm:flex-row sm:items-end sm:justify-between">
-    <div class="max-w-2xl">
-      <div class="mb-3 flex items-center gap-2 text-sm font-medium text-primary">
-        <Sparkles class="h-4 w-4" />
-        Tutor Factory
-      </div>
-      <h1 class="text-3xl font-semibold tracking-normal sm:text-4xl">Build a tutor made for you</h1>
-      <p class="mt-3 text-base leading-7 text-muted-foreground">
-        Tell us how you learn. H researches the curriculum, and Gradium gives your tutor a voice.
-      </p>
-    </div>
-
-    <div class="inline-flex self-start rounded-md border bg-muted/40 p-1" aria-label="Tutor Studio view">
-      <Button
-        size="sm"
-        variant={mode === 'create' ? 'default' : 'ghost'}
-        class="gap-2"
+<div class="mx-auto w-full max-w-xl px-1 pb-12 pt-2 sm:pt-6">
+  <!-- Two views, nothing else -->
+  <div class="flex justify-center">
+    <div
+      class="inline-flex rounded-full bg-sky-50 p-1 dark:bg-sky-950/50"
+      role="tablist"
+      aria-label="Tutor Studio"
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === 'create'}
+        class="min-h-11 rounded-full px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 {mode ===
+        'create'
+          ? 'bg-white text-sky-700 shadow-sm dark:bg-sky-900 dark:text-sky-100'
+          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}"
         onclick={() => (mode = 'create')}
       >
-        <GraduationCap class="h-4 w-4" />
         Create tutor
-      </Button>
-      <Button
-        size="sm"
-        variant={mode === 'library' ? 'default' : 'ghost'}
-        class="gap-2"
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === 'library'}
+        class="min-h-11 rounded-full px-5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 {mode ===
+        'library'
+          ? 'bg-white text-sky-700 shadow-sm dark:bg-sky-900 dark:text-sky-100'
+          : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100'}"
         onclick={() => (mode = 'library')}
       >
-        <Library class="h-4 w-4" />
         My tutors
-      </Button>
+      </button>
     </div>
-  </header>
+  </div>
 
   {#if isGuest}
-    <div class="py-16 text-center">
-      <GraduationCap class="mx-auto h-10 w-10 text-muted-foreground" />
-      <h2 class="mt-4 text-xl font-semibold">Tutor creation is for workspace members</h2>
-      <p class="mt-2 text-sm text-muted-foreground">Ask a workspace member to create and share a tutor.</p>
-    </div>
+    <p class="mt-16 text-center text-sm text-muted-foreground">Only workspace members can create tutors.</p>
   {:else if mode === 'create'}
-    <div
-      class="mx-auto mt-8 max-w-3xl overflow-hidden rounded-md border bg-card shadow-sm"
-      data-testid="tutor-builder"
-    >
-      <div class="flex items-center justify-between border-b px-5 py-4">
-        <div>
-          <p class="text-sm font-semibold">New personalized tutor</p>
-          <p class="text-xs text-muted-foreground">
-            {phase === 'questions'
-              ? `Question ${Math.min(questionIndex + 1, TUTOR_QUESTIONS.length)} of ${TUTOR_QUESTIONS.length}`
-              : phase === 'review'
-                ? 'Ready to create'
-                : phase === 'researching'
-                  ? 'Research in progress'
-                  : 'Tutor ready'}
-          </p>
-        </div>
-        {#if phase !== 'questions'}
-          <Button size="icon" variant="ghost" aria-label="Start over" title="Start over" onclick={reset}>
-            <RotateCcw class="h-4 w-4" />
-          </Button>
-        {/if}
-      </div>
-
-      <div class="h-1 bg-muted" aria-hidden="true">
-        <div
-          class="h-full bg-primary transition-all duration-300 motion-reduce:transition-none"
-          style:width={`${phase === 'ready' ? 100 : phase === 'researching' || phase === 'review' ? 92 : progress}%`}
-        ></div>
-      </div>
-
-      {#if phase === 'questions'}
-        <div class="min-h-[430px] space-y-5 px-5 py-6 sm:px-8" aria-live="polite">
-          <div class="flex gap-3">
-            <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-            >
-              <GraduationCap class="h-5 w-5" />
-            </div>
-            <div class="max-w-[85%] rounded-md bg-muted px-4 py-3 text-sm leading-6">
-              Let’s create a tutor that fits you. I’ll ask seven quick questions.
-            </div>
+    <div class="mt-10" data-testid="tutor-builder">
+      {#if phase === 'questions' && question}
+        <!-- One question at a time -->
+        <div class="flex items-center justify-between">
+          <div class="flex gap-1.5" aria-label={`Question ${questionIndex + 1} of ${TUTOR_QUESTIONS.length}`}>
+            {#each TUTOR_QUESTIONS as q, index (q.field)}
+              <span
+                class="h-1.5 w-6 rounded-full {index <= questionIndex
+                  ? 'bg-sky-500'
+                  : 'bg-sky-100 dark:bg-sky-900/60'}"
+              ></span>
+            {/each}
           </div>
-
-          {#each answeredQuestions as answered (answered.field)}
-            <div class="space-y-3">
-              <div class="flex gap-3">
-                <div
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                >
-                  <GraduationCap class="h-5 w-5" />
-                </div>
-                <div class="max-w-[85%] rounded-md bg-muted px-4 py-3 text-sm leading-6">
-                  {answered.prompt}
-                </div>
-              </div>
-              <div class="flex justify-end">
-                <div class="max-w-[85%] rounded-md bg-foreground px-4 py-3 text-sm leading-6 text-background">
-                  {profile[answered.field]}
-                </div>
-              </div>
-            </div>
-          {/each}
-
-          {#if question}
-            <div class="flex gap-3">
-              <div
-                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
-              >
-                <GraduationCap class="h-5 w-5" />
-              </div>
-              <div class="max-w-[85%] rounded-md bg-muted px-4 py-3 text-sm font-medium leading-6">
-                {question.prompt}
-              </div>
-            </div>
-
-            {#if question.choices}
-              <div class="flex flex-wrap gap-2 pl-12">
-                {#each question.choices as choice (choice)}
-                  <Button
-                    variant="outline"
-                    class="h-auto min-h-11 whitespace-normal py-2 text-left"
-                    onclick={() => submitAnswer(choice)}
-                  >
-                    {choice}
-                  </Button>
-                {/each}
-              </div>
-            {:else}
-              <div class="flex items-center gap-2 border-t pt-5">
-                <Input
-                  type="text"
-                  inputmode={question.field === 'age' ? 'numeric' : undefined}
-                  bind:value={draft}
-                  placeholder={question.placeholder}
-                  aria-label={question.prompt}
-                  onkeydown={handleKeydown}
-                  autofocus
-                />
-                <Button
-                  size="icon"
-                  aria-label="Send answer"
-                  title="Send answer"
-                  disabled={!String(draft).trim()}
-                  onclick={() => submitAnswer()}
-                >
-                  <Send class="h-4 w-4" />
-                </Button>
-              </div>
-            {/if}
+          {#if questionIndex > 0}
+            <button
+              type="button"
+              class="inline-flex h-11 w-11 items-center justify-center rounded-full text-slate-400 hover:bg-sky-50 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:hover:bg-sky-950/60"
+              aria-label="Start over"
+              title="Start over"
+              onclick={reset}
+            >
+              <RotateCcw class="h-4 w-4" />
+            </button>
           {/if}
         </div>
-      {:else if phase === 'review'}
-        <div class="px-5 py-8 sm:px-8">
-          <div class="mx-auto max-w-xl text-center">
-            <div
-              class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"
+
+        <h1 class="mt-8 text-2xl font-semibold leading-tight sm:text-3xl">{question.prompt}</h1>
+
+        {#if question.choices}
+          <div class="mt-8 grid gap-3">
+            {#each question.choices as choice (choice)}
+              <button
+                type="button"
+                class="min-h-14 rounded-2xl border border-sky-100 bg-white px-5 text-left text-base font-medium text-slate-800 transition-colors hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-900/60 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-sky-950/60"
+                onclick={() => submitAnswer(choice)}
+              >
+                {choice}
+              </button>
+            {/each}
+          </div>
+        {:else}
+          <div
+            class="mt-8 flex items-center gap-2 rounded-2xl border border-sky-200 bg-white p-1.5 pl-5 focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-200 dark:border-sky-800 dark:bg-slate-900 dark:focus-within:ring-sky-900"
+          >
+            <!-- svelte-ignore a11y_autofocus -->
+            <input
+              type="text"
+              inputmode={question.field === 'age' ? 'numeric' : undefined}
+              bind:value={draft}
+              placeholder={question.placeholder}
+              aria-label={question.prompt}
+              onkeydown={handleKeydown}
+              autofocus
+              class="min-h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-slate-400"
+            />
+            <button
+              type="button"
+              class="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 disabled:bg-sky-200 dark:bg-sky-500 dark:text-slate-950 dark:disabled:bg-sky-900 dark:disabled:text-sky-700"
+              aria-label="Next"
+              title="Next"
+              disabled={!String(draft).trim()}
+              onclick={() => submitAnswer()}
             >
-              <GraduationCap class="h-6 w-6" />
-            </div>
-            <h2 class="mt-4 text-2xl font-semibold">Meet your future tutor</h2>
-            <p class="mt-2 leading-7 text-muted-foreground">
-              A {profile.tone.toLowerCase()}
-              {profile.subject} tutor for {profile.learnerName}, using
-              {profile.learningStyle.toLowerCase()} in {profile.language}.
-            </p>
+              <ArrowRight class="h-5 w-5" />
+            </button>
           </div>
-
-          <dl class="mx-auto mt-7 grid max-w-xl grid-cols-2 gap-x-6 gap-y-4 border-y py-5 text-sm">
-            <div>
-              <dt class="text-muted-foreground">Learner</dt>
-              <dd class="mt-1 font-medium">{profile.learnerName}, {profile.age}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Subject</dt>
-              <dd class="mt-1 font-medium">{profile.subject}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Level</dt>
-              <dd class="mt-1 font-medium">{profile.level}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Style</dt>
-              <dd class="mt-1 font-medium">{profile.learningStyle}</dd>
-            </div>
-          </dl>
-
-          <div class="mx-auto mt-7 flex max-w-xl flex-col gap-3 sm:flex-row sm:justify-center">
-            <Button class="min-h-11 gap-2" onclick={() => void createTutor()}>
-              <Sparkles class="h-4 w-4" />
-              Research and create tutor
-            </Button>
-            <Button variant="outline" class="min-h-11" onclick={reset}>Start again</Button>
-          </div>
-          <div class="mx-auto mt-4 max-w-xl"><FormError message={createError} /></div>
+        {/if}
+      {:else if phase === 'review'}
+        <!-- Confirm -->
+        <h1 class="text-center text-2xl font-semibold sm:text-3xl">Ready?</h1>
+        <ul class="mt-8 flex flex-wrap justify-center gap-2">
+          {#each [`${profile.learnerName}, ${profile.age}`, profile.subject, profile.level, profile.learningStyle, profile.tone, profile.language] as detail, index (index)}
+            <li
+              class="rounded-full bg-sky-50 px-4 py-2 text-sm text-sky-800 dark:bg-sky-950/60 dark:text-sky-100"
+            >
+              {detail}
+            </li>
+          {/each}
+        </ul>
+        <div class="mt-10 flex flex-col items-center gap-2">
+          <button
+            type="button"
+            class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-sky-600 px-8 text-base font-medium text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400 sm:w-auto"
+            onclick={() => void createTutor()}
+          >
+            Create my tutor
+          </button>
+          <button
+            type="button"
+            class="min-h-11 rounded-full px-4 text-sm text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:text-slate-400 dark:hover:text-slate-100"
+            onclick={reset}
+          >
+            Start over
+          </button>
         </div>
+        {#if createError}
+          <p class="mt-4 text-center text-sm text-destructive" role="alert">{createError}</p>
+        {/if}
       {:else if phase === 'researching'}
-        <div class="px-5 py-14 text-center sm:px-8" aria-live="polite">
-          <LoaderCircle class="mx-auto h-10 w-10 animate-spin text-primary motion-reduce:animate-none" />
-          <h2 class="mt-5 text-2xl font-semibold">H is building the curriculum</h2>
-          <p class="mx-auto mt-2 max-w-lg leading-7 text-muted-foreground">
-            Researching age-appropriate teaching methods, creating three lessons, and preparing the project.
-          </p>
-          <ol class="mx-auto mt-8 max-w-md space-y-3 text-left text-sm">
-            <li class="flex items-center gap-3">
-              <Check class="h-4 w-4 text-primary" /> Student profile prepared
-            </li>
-            <li class="flex items-center gap-3">
-              <LoaderCircle class="h-4 w-4 animate-spin text-primary motion-reduce:animate-none" /> Researching
-              with H
-            </li>
-            <li class="flex items-center gap-3 text-muted-foreground">
-              <BookOpen class="h-4 w-4" /> Creating Project and lesson Items
-            </li>
-          </ol>
+        <!-- H at work -->
+        <div class="py-10 text-center" aria-live="polite">
+          <LoaderCircle class="mx-auto h-10 w-10 animate-spin text-sky-500 motion-reduce:animate-none" />
+          <h1 class="mt-6 text-2xl font-semibold">Creating your tutor…</h1>
+          <p class="mt-2 text-sm text-muted-foreground">About a minute</p>
           {#if activeRun?.liveUrl}
             <a
               href={activeRun.liveUrl}
               target="_blank"
               rel="noopener noreferrer"
-              class="mt-7 inline-flex min-h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="mt-6 inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 text-sm text-sky-700 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:text-sky-300 dark:hover:bg-sky-950/60"
             >
-              Watch H work live
-              <ExternalLink class="h-4 w-4" />
+              Watch H research live <ExternalLink class="h-3.5 w-3.5" />
             </a>
           {/if}
         </div>
       {:else if phase === 'ready' && research && createdProject}
-        <div class="px-5 py-8 sm:px-8" data-testid="tutor-created">
-          <div class="flex flex-col gap-5 border-b pb-7 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <Badge variant="latest">Tutor ready</Badge>
-              <h2 class="mt-3 text-2xl font-semibold">{research.tutorName}</h2>
-              <p class="mt-2 max-w-xl leading-7 text-muted-foreground">{research.welcome}</p>
-            </div>
-            <div class="flex shrink-0 flex-wrap gap-2">
-              <Button variant="outline" class="gap-2" disabled={speaking} onclick={() => void speakWelcome()}>
-                <Volume2 class="h-4 w-4" />
-                {speaking ? 'Preparing voice…' : 'Hear welcome'}
-              </Button>
-              <Button class="gap-2" onclick={() => void goto(`/tutors/${createdProject!.id}/room`)}>
-                Start first lesson
-                <ArrowRight class="h-4 w-4" />
-              </Button>
-            </div>
+        <!-- Done -->
+        <div class="text-center">
+          <div
+            class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+          >
+            <GraduationCap class="h-8 w-8" />
           </div>
-
-          <div class="py-7">
-            <h3 class="text-sm font-semibold uppercase tracking-normal text-muted-foreground">
-              First learning path
-            </h3>
-            <ol class="mt-4 divide-y border-y">
-              {#each research.lessons as lesson, index (lesson.title)}
-                <li class="grid gap-2 py-5 sm:grid-cols-[3rem_1fr]">
-                  <span class="text-2xl font-semibold text-primary">0{index + 1}</span>
-                  <div>
-                    <h4 class="font-semibold">{lesson.title}</h4>
-                    <p class="mt-1 text-sm leading-6 text-muted-foreground">{lesson.objective}</p>
-                  </div>
-                </li>
-              {/each}
-            </ol>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-3 border-t pt-5">
-            {#if activeRun?.liveUrl}
-              <a
-                href={activeRun.liveUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex items-center gap-1 text-sm underline"
-              >
-                View H research session <ExternalLink class="h-3.5 w-3.5" />
-              </a>
-            {/if}
-            <span class="text-sm text-muted-foreground"
-              >Project and 3 lesson Items created automatically.</span
+          <h1 class="mt-5 text-2xl font-semibold sm:text-3xl">{research.tutorName}</h1>
+          <p class="mx-auto mt-3 max-w-md leading-7 text-muted-foreground">{research.welcome}</p>
+          <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <button
+              type="button"
+              class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border border-sky-200 px-6 text-base font-medium text-sky-800 hover:bg-sky-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:opacity-60 dark:border-sky-800 dark:text-sky-100 dark:hover:bg-sky-950/60 sm:w-auto"
+              disabled={speaking}
+              onclick={() => void speakWelcome()}
             >
+              {#if speaking}
+                <LoaderCircle class="h-5 w-5 animate-spin motion-reduce:animate-none" />
+              {:else}
+                <Volume2 class="h-5 w-5" />
+              {/if}
+              Listen
+            </button>
+            <a
+              href={`/tutors/${createdProject.id}/room`}
+              class="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-sky-600 px-8 text-base font-medium text-white transition-colors hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950 dark:hover:bg-sky-400 sm:w-auto"
+            >
+              Start learning <ArrowRight class="h-5 w-5" />
+            </a>
           </div>
-          <FormError message={voiceError} />
+          {#if voiceError}
+            <p class="mt-4 text-sm text-destructive" role="alert">{voiceError}</p>
+          {/if}
+          <button
+            type="button"
+            class="mt-6 min-h-11 rounded-full px-4 text-sm text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:text-slate-400 dark:hover:text-slate-100"
+            onclick={reset}
+          >
+            Create another tutor
+          </button>
         </div>
       {/if}
     </div>
   {:else}
-    <div class="pt-8" data-testid="tutor-library">
-      <div class="mb-5 flex items-center justify-between">
-        <div>
-          <h2 class="text-xl font-semibold">My tutors</h2>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Every tutor is stored as a Project with its lessons inside.
-          </p>
-        </div>
-        <Button size="sm" class="gap-2" onclick={() => (mode = 'create')}>
-          <GraduationCap class="h-4 w-4" /> New tutor
-        </Button>
-      </div>
-
+    <!-- My tutors -->
+    <div class="mt-10">
       {#if tutorsLoading}
-        <div class="flex min-h-52 items-center justify-center border-y">
-          <LoaderCircle class="h-6 w-6 animate-spin text-primary motion-reduce:animate-none" />
+        <div class="flex justify-center py-16" aria-live="polite">
+          <LoaderCircle class="h-7 w-7 animate-spin text-sky-500 motion-reduce:animate-none" />
+          <span class="sr-only">Loading your tutors</span>
         </div>
       {:else if tutorsError}
-        <div class="border-y py-8"><FormError message={tutorsError} /></div>
+        <p class="py-16 text-center text-sm text-destructive" role="alert">{tutorsError}</p>
       {:else if !tutors.length}
-        <div class="border-y py-14 text-center">
-          <GraduationCap class="mx-auto h-9 w-9 text-muted-foreground" />
-          <h3 class="mt-4 font-semibold">No tutors yet</h3>
-          <p class="mt-1 text-sm text-muted-foreground">
-            Create your first personalized tutor in a few questions.
-          </p>
-          <Button class="mt-5" onclick={() => (mode = 'create')}>Create a tutor</Button>
+        <div class="py-16 text-center">
+          <p class="text-muted-foreground">No tutors yet.</p>
+          <button
+            type="button"
+            class="mt-5 inline-flex min-h-12 items-center gap-2 rounded-full bg-sky-600 px-6 text-base font-medium text-white hover:bg-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 dark:bg-sky-500 dark:text-slate-950"
+            onclick={() => (mode = 'create')}
+          >
+            <Plus class="h-5 w-5" /> Create tutor
+          </button>
         </div>
       {:else}
-        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul class="grid grid-cols-[minmax(0,1fr)] gap-3">
           {#each tutors as tutor (tutor.id)}
-            <button
-              type="button"
-              class="group min-h-44 rounded-md border bg-card p-5 text-left transition-colors hover:border-primary/60 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onclick={() => void goto(`/projects/${tutor.id}`)}
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <li>
+              <a
+                href={`/tutors/${tutor.id}/room`}
+                class="flex min-h-16 items-center gap-4 rounded-2xl border border-sky-100 bg-white p-3 pr-4 transition-colors hover:border-sky-300 hover:bg-sky-50/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 dark:border-sky-900/60 dark:bg-slate-900 dark:hover:bg-sky-950/50"
+              >
+                <span
+                  class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/60 dark:text-sky-200"
+                  aria-hidden="true"
+                >
                   <GraduationCap class="h-5 w-5" />
-                </div>
-                <ArrowRight
-                  class="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1 motion-reduce:transition-none"
-                />
-              </div>
-              <h3 class="mt-5 font-semibold">{tutor.name}</h3>
-              <p class="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
-                {tutor.description?.split('\n').slice(1, 3).join(' · ') || 'Personalized tutor'}
-              </p>
-            </button>
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block truncate font-medium">{tutor.name}</span>
+                  <span class="block truncate text-sm text-muted-foreground"
+                    >{tutor.description?.split('\n')[1] ?? ''}</span
+                  >
+                </span>
+                <ChevronRight class="h-5 w-5 shrink-0 text-slate-400" />
+              </a>
+            </li>
           {/each}
-        </div>
+        </ul>
       {/if}
     </div>
   {/if}
