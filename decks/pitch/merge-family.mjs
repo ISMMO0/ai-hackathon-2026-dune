@@ -15,7 +15,19 @@ html = html
   .replace(/<script id="fam-script">[\s\S]*?<\/script>\n?/, '')
   .replace(/<figure class="fam-scene">[\s\S]*?<\/figure>/, '<canvas class="fig" data-fig="interference"></canvas>')
   .replace(' has-family', '')
-  .replace(/<video class="demo-video"[^>]*><\/video>/,'<img src="assets/demo.jpg" alt="Live demo" decoding="async">');
+  .replace(/<video class="demo-video"[^>]*><\/video>/,'<img src="assets/demo.jpg" alt="Live demo" decoding="async">')
+  .replace(/<div class="biz">[\s\S]*?<!--\/biz--><\/div>/, '<canvas class="fig diagram" data-fig="bricks"></canvas>');
+
+// What it costs: the business model (from the team's HTML pitch, slide 8) in place of the brick drawing.
+const biz =
+  `<div class="biz"><span class="over">Business model · illustrative</span>` +
+  `<div class="biz-row"><span class="n">01</span><div><b>Direct-to-user app</b><em>€9.90 / child / month</em></div></div>` +
+  `<div class="biz-row"><span class="n">02</span><div><b>Skill / API for AI agents</b><em>€0.05 / learning interaction</em></div></div>` +
+  `<table><thead><tr><th>Revenue forecast · assumptions only</th><th>Year 1</th><th>Year 2</th><th>Year 3</th></tr></thead><tbody>` +
+  `<tr><td>Paid app subscribers</td><td>1k</td><td>5k</td><td>15k</td></tr>` +
+  `<tr><td>API interactions</td><td>0.2M</td><td>1M</td><td>5M</td></tr>` +
+  `<tr class="tot"><td>Total revenue</td><td>€0.13M</td><td>€0.64M</td><td>€2.03M</td></tr></tbody></table><!--/biz--></div>`;
+html = html.replace(/(class="slide s-date s-stake"[^>]*>[\s\S]*?)<canvas class="fig diagram" data-fig="bricks"><\/canvas>/, `$1${biz}`);
 
 for (const f of ['scene.jpg', 'clip-0.mp3', 'clip-1.mp3', 'clip-2.mp3']) {
   fs.copyFileSync(path.join(HERE, 'family', f), path.join(deck, 'assets', `family-${f}`));
@@ -65,6 +77,16 @@ const style = `<style id="fam-style">
 .fam-spot:focus-visible, .fam-all:focus-visible { outline: 3px solid #181614; outline-offset: 2px; }
 .fam-spot.playing { background: rgba(233,201,141,.35); }
 .fam-all { position: absolute; right: 0; bottom: -58px; font: inherit; font-size: 16px; background: #181614; color: #f0efea; border: 0; border-radius: 6px; padding: 10px 16px; cursor: pointer; pointer-events: auto; }
+.biz { position: absolute; left: 860px; right: 110px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 18px; background: rgba(255,255,255,.55); border: 1px solid rgba(24,22,20,.12); border-radius: 12px; padding: 30px 34px; }
+.biz-row { display: flex; gap: 18px; align-items: baseline; }
+.biz-row .n { font-size: 16px; letter-spacing: .1em; opacity: .55; }
+.biz-row b { display: block; font-size: 24px; font-weight: 500; }
+.biz-row em { display: block; font-style: italic; font-size: 30px; margin-top: 2px; }
+.biz table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.biz th { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; opacity: .6; text-align: right; padding: 6px 8px; border-bottom: 1px solid rgba(24,22,20,.18); }
+.biz th:first-child, .biz td:first-child { text-align: left; }
+.biz td { font-size: 19px; text-align: right; padding: 8px; border-bottom: 1px solid rgba(24,22,20,.1); }
+.biz tr.tot td { font-size: 21px; font-weight: 600; border-bottom: 0; }
 .demo-video { display: block; width: 100%; height: 100%; object-fit: contain; background: #111; pointer-events: auto; }
 </style>`;
 
