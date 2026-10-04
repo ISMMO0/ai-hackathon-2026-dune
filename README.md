@@ -1,20 +1,52 @@
 # DUNE
 
 **DUNE is an AI tutor studio that turns a short conversation about a learner into a researched, personalized
-tutor with its own curriculum, teaching style, voice and living learning state.** It was built for the
-Malt × Antasphere AI Hackathon.
+tutor with its own curriculum, teaching style, voice and living learning state.** It was built by a team of
+five for the Malt × Antasphere AI Hackathon, whose goal was to create practical tools that make agents more
+capable and useful.
 
 Instead of giving every child the same generic chatbot, DUNE discovers how they learn, asks H to research a
-safe micro-curriculum, creates a portable tutor brain, and uses Gradium to give the tutor a consistent voice.
-The learner can then work through lessons in a Tutor Room where the tutor explains, corrects, asks the next
-question and remembers progress.
+safe micro-curriculum, creates a portable tutor brain, and uses Gradium to give the tutor a consistent,
+personalized voice. The learner can then work through lessons in a Tutor Room where the tutor explains,
+corrects, asks the next question and remembers progress.
 
-## Demo videos
+## See DUNE in action
 
-- [DUNE overview — 30 seconds](docs/demo/dune-overview.mp4)
-- [Complete tutor workflow — 3 minutes 33 seconds](docs/demo/dune-tutor-workflow.mp4)
+These two short demos show the product from the first learner conversation to a tutor that can teach, remember,
+and speak. Click a preview to open the full MP4 on GitHub.
 
-Both videos are committed as browser-friendly MP4 files. Open either link on GitHub to play or download it.
+<table>
+<tr>
+<td width="50%" valign="top">
+
+<h3>DUNE overview</h3>
+
+<a href="./docs/demo/dune-overview.mp4">
+  <img src="./docs/demo/dune-overview.jpg" alt="DUNE tutor studio overview" width="100%">
+</a>
+
+<video controls poster="./docs/demo/dune-overview.jpg" width="100%">
+  <source src="./docs/demo/dune-overview.mp4" type="video/mp4">
+  Your browser can open the <a href="./docs/demo/dune-overview.mp4">DUNE overview video</a>.
+</video>
+
+</td>
+<td width="50%" valign="top">
+
+<h3>Complete tutor workflow</h3>
+
+<a href="./docs/demo/dune-tutor-workflow.mp4">
+  <img src="./docs/demo/dune-tutor-workflow.jpg" alt="DUNE tutor workflow" width="100%">
+</a>
+
+<video controls poster="./docs/demo/dune-tutor-workflow.jpg" width="100%">
+  <source src="./docs/demo/dune-tutor-workflow.mp4" type="video/mp4">
+  Your browser can open the <a href="./docs/demo/dune-tutor-workflow.mp4">complete tutor workflow video</a>.
+</video>
+
+</td>
+</tr>
+</table>
 
 ## The experience
 
