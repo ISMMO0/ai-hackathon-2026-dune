@@ -1,4 +1,9 @@
-# DUNE
+# Antasphere × Malt AI Hackathon
+
+## DUNE · Personalized Tutor Agents
+
+**Friday 2 October 2026 · Brussels, Belgium**
+**Presented by Ismail El Hammoumi**
 
 **DUNE is an AI tutor studio that turns a short conversation about a learner into a researched, personalized
 tutor with its own curriculum, teaching style, voice and living learning state.** It was built by a team of
@@ -9,6 +14,60 @@ Instead of giving every child the same generic chatbot, DUNE discovers how they 
 safe micro-curriculum, creates a portable tutor brain, and uses Gradium to give the tutor a consistent,
 personalized voice. The learner can then work through lessons in a Tutor Room where the tutor explains,
 corrects, asks the next question and remembers progress.
+
+We presented DUNE in front of a jury of engineers and AI engineers from H Company, Gradium, Antasphere, and
+Malt. Belgium's Minister of the Economy was also present for the presentation.
+
+## Hackathon presentation
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="./docs/presentation/ismail-presenting-dune.jpg" alt="Ismail El Hammoumi presenting DUNE" width="100%">
+</td>
+<td width="50%" valign="top">
+<img src="./docs/presentation/dune-demo-jury.jpg" alt="DUNE live demo during the jury presentation" width="100%">
+</td>
+</tr>
+</table>
+
+## How the agent workflow works
+
+### 1. From learner request to tutor
+
+```mermaid
+flowchart LR
+    A[Child or parent asks for a tutor] --> B[DUNE discovery conversation]
+    B --> C[Profile: age, subject, level, style]
+    C --> D[H Company researches teaching material]
+    D --> E[DUNE validates and builds lessons]
+    E --> F[Project + tutor skill brain]
+    F --> G[Tutor Room]
+```
+
+### 2. Tool orchestration during a lesson
+
+```mermaid
+sequenceDiagram
+    participant L as Learner
+    participant D as DUNE Agent
+    participant H as H Company
+    participant G as Gradium
+    participant P as Tutor Project
+
+    L->>D: Ask a question or answer an exercise
+    D->>P: Load tutor profile, lessons and learner state
+    D->>H: Research or verify new learning material when needed
+    H-->>D: Sources and teaching context
+    D->>D: Explain, correct and choose the next question
+    D->>G: Convert tutor response to speech
+    G-->>L: Spoken tutor answer
+    D->>P: Save conversation and progress
+```
+
+The important idea is that the agent does not call every service for every message. H Company is used when
+the tutor needs research or fresh web context. Gradium is used when the learner speaks or wants to hear the
+tutor. DUNE coordinates both services and keeps the resulting tutor, lessons, and progress in one Project.
 
 ## See DUNE in action
 
